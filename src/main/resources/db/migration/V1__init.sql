@@ -1,0 +1,6 @@
+CREATE TABLE event (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    start_time TIMESTAMP NOT NULL,
+    status VARCHAR(50) NOT NULL
+);

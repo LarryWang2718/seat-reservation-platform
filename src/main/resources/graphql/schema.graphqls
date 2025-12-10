@@ -1,0 +1,44 @@
+type Query {
+  events: [Event!]!
+  seatsByEvent(eventId: ID!): [Seat!]!
+}
+
+type Mutation {
+  createEvent(input: CreateEventInput!): Event!
+  createSeat(input: CreateSeatInput!): Seat!
+}
+
+type Event {
+  id: ID!
+  name: String!
+  startTime: String!
+  endTime: String!
+  saleStartTime: String!
+  saleEndTime: String!
+  location: String!
+  status: String!
+}
+
+type Seat {
+  id: ID!
+  eventId: ID!
+  section: String!
+  rowLabel: String!
+  seatNumber: String!
+}
+
+input CreateEventInput {
+  name: String!
+  startTime: String!
+  endTime: String!
+  saleStartTime: String!
+  saleEndTime: String!
+  location: String!
+}
+
+input CreateSeatInput {
+  eventId: ID!
+  section: String!
+  rowLabel: String!
+  seatNumber: String!
+}
