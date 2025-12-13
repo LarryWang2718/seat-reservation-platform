@@ -4,55 +4,55 @@ Use this file as the working checklist for the project. At the end of each day, 
 
 ## Current focus
 
-- [ ] Keep the app booting cleanly with `mvn test`
-- [ ] Move DB credentials out of `application.properties`
-- [ ] Keep schema changes in Flyway migrations only
+- [x] Keep the app booting cleanly with `mvn test`
+- [x] Move DB credentials out of `application.properties`
+- [x] Keep schema changes in Flyway migrations only
 
 ## Phase 1: Foundation and event model
 
 - [ ] Define package structure for `event`, `seat`, `hold`, `order`, `ticket`, `payment`, `outbox`
-- [ ] Implement `EventStatus`
-- [ ] Implement `Event` JPA entity
-- [ ] Implement `EventRepository`
-- [ ] Create DTOs for event create/list APIs
+- [x] Implement `EventStatus`
+- [x] Implement `Event` JPA entity
+- [x] Implement `EventRepository`
+- [x] Create DTOs for event create/list APIs
 - [ ] Implement `POST /events`
 - [ ] Implement `GET /events`
 - [ ] Add tests for event creation and listing
 
 ## Phase 2: Seat inventory model
 
-- [ ] Design assigned-seat schema for one event
-- [ ] Create Flyway migration for `seat`
-- [ ] Implement `Seat` entity
-- [ ] Implement `SeatRepository`
-- [ ] Enforce unique seat identity within an event
-- [ ] Add seat creation/bootstrap path for an event
+- [x] Design assigned-seat schema for one event
+- [x] Create Flyway migration for `seat`
+- [x] Implement `Seat` entity
+- [x] Implement `SeatRepository`
+- [x] Enforce unique seat identity within an event
+- [x] Add seat creation/bootstrap path for an event
 - [ ] Add tests for seat persistence and uniqueness rules
 
 ## Phase 3: Hold flow and concurrency boundary
 
-- [ ] Design `HoldStatus` values
-- [ ] Create Flyway migration for `hold`
-- [ ] Implement `Hold` entity
-- [ ] Implement `HoldRepository`
-- [ ] Add DB constraint/index for one active hold per seat
-- [ ] Add service method to start checkout hold
+- [x] Design `HoldStatus` values
+- [x] Create Flyway migration for `hold`
+- [x] Implement `Hold` entity
+- [x] Implement `HoldRepository`
+- [x] Add DB constraint/index for one active hold per seat
+- [x] Add service method to start checkout hold
 - [ ] Enforce max 4 seats per checkout
 - [ ] Enforce one active checkout per user per event
 - [ ] Lock seat rows transactionally during hold creation
-- [ ] Add tests for successful hold creation
+- [x] Add tests for successful hold creation
 - [ ] Add concurrent tests proving no duplicate active hold on one seat
 
 ## Phase 4: Order, ticket, and checkout completion
 
 - [ ] Design `OrderStatus`, `TicketStatus`, `PaymentStatus`
-- [ ] Create Flyway migration for `order`
-- [ ] Create Flyway migration for `ticket`
+- [x] Create Flyway migration for `order`
+- [x] Create Flyway migration for `ticket`
 - [ ] Create Flyway migration for `payment`
-- [ ] Implement `Order` entity and repository
-- [ ] Implement `Ticket` entity and repository
+- [x] Implement `Order` entity and repository
+- [x] Implement `Ticket` entity and repository
 - [ ] Implement `Payment` entity and repository
-- [ ] Add DB rule preventing double-sell of a seat
+- [x] Add DB rule preventing double-sell of a seat
 - [ ] Implement checkout confirmation transaction
 - [ ] Convert valid holds into sold tickets atomically
 - [ ] Add tests for successful checkout
@@ -93,8 +93,8 @@ Use this file as the working checklist for the project. At the end of each day, 
 
 ## Phase 8: GraphQL API
 
-- [ ] Define GraphQL schema for events
-- [ ] Define GraphQL schema for seat map
+- [x] Define GraphQL schema for events
+- [x] Define GraphQL schema for seat map
 - [ ] Define GraphQL mutations for hold and checkout
 - [ ] Resolve reads from projection tables
 - [ ] Route writes through transactional services
@@ -128,6 +128,9 @@ Use this file as the working checklist for the project. At the end of each day, 
 
 ## Today
 
-- [ ] Implement `EventStatus`
-- [ ] Implement `Event`
-- [ ] Implement `EventRepository`
+- [x] Implement `EventStatus`
+- [x] Implement `Event`
+- [x] Implement `EventRepository`
+- [x] Build `Seat`, `Hold`, `Order`, and `Ticket` schema/entity foundations
+- [ ] Update `HoldService` to reject sold seats via `TicketRepository`
+- [ ] Add service tests for `Order` and `Ticket`
