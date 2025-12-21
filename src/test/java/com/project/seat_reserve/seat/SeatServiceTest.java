@@ -2,7 +2,6 @@ package com.project.seat_reserve.seat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -17,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.event.EventStatus;
@@ -82,7 +82,7 @@ class SeatServiceTest {
 
         when(eventRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> seatService.createSeat(request));
+        assertThrows(EventNotFoundException.class, () -> seatService.createSeat(request));
     }
 
     @Test

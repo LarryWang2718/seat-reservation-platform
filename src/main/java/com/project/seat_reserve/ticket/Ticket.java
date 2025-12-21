@@ -2,7 +2,6 @@ package com.project.seat_reserve.ticket;
 
 import java.time.LocalDateTime;
 
-import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.seat.Seat;
 
@@ -14,10 +13,14 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "ticket", uniqueConstraints = @UniqueConstraint(columnNames = {"seat_id"}))
@@ -30,13 +33,8 @@ public class Ticket {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull(message = "Event cannot be null")
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "event_id")
-    private Event event;
-
     @NotNull(message = "Seat cannot be null")
-    @ManyToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seat_id")
     private Seat seat;
 

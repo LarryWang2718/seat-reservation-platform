@@ -2,6 +2,7 @@ package com.project.seat_reserve.hold;
 
 import java.time.LocalDateTime;
 
+import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.seat.Seat;
 
 import jakarta.persistence.Column;
@@ -35,9 +36,10 @@ public class Hold {
     @JoinColumn(name = "seat_id")
     private Seat seat;
 
-    @NotBlank(message = "Session ID cannot be null")
-    @Column(name = "session_id", nullable = false)
-    private String sessionId;
+    @NotNull(message = "Order cannot be null")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    private Order order;
 
     @NotNull(message = "Expires at cannot be null")
     @Column(name = "expires_at", nullable = false)

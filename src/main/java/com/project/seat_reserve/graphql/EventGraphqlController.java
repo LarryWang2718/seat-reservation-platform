@@ -3,10 +3,13 @@ package com.project.seat_reserve.graphql;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import jakarta.validation.Valid;
+
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
+import org.springframework.validation.annotation.Validated;
 
 import com.project.seat_reserve.event.EventService;
 import com.project.seat_reserve.event.dto.CreateEventRequest;
@@ -17,6 +20,7 @@ import com.project.seat_reserve.graphql.dto.EventView;
 import lombok.RequiredArgsConstructor;
 
 @Controller
+@Validated
 @RequiredArgsConstructor
 public class EventGraphqlController {
     private final EventService eventService;
@@ -29,7 +33,7 @@ public class EventGraphqlController {
     }
 
     @MutationMapping
-    public EventView createEvent(@Argument("input") CreateEventInput input) {
+    public EventView createEvent(@Argument("input") @Valid CreateEventInput input) {
         CreateEventRequest request = new CreateEventRequest(
             input.name(),
             LocalDateTime.parse(input.startTime()),

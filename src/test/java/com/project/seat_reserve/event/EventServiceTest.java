@@ -2,7 +2,6 @@ package com.project.seat_reserve.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -15,6 +14,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
+import com.project.seat_reserve.common.exception.InvalidSaleWindowException;
 import com.project.seat_reserve.event.dto.CreateEventRequest;
 import com.project.seat_reserve.event.dto.EventResponse;
 
@@ -108,7 +109,7 @@ class EventServiceTest {
         request.setSaleEndTime(LocalDateTime.now().plusHours(1));
         request.setLocation("Arena");
 
-        assertThrows(IllegalArgumentException.class, () -> eventService.createEvent(request));
+        assertThrows(InvalidSaleWindowException.class, () -> eventService.createEvent(request));
     }
 
     @Test
@@ -121,6 +122,6 @@ class EventServiceTest {
         request.setSaleEndTime(LocalDateTime.now().minusHours(1));
         request.setLocation("Arena");
 
-        assertThrows(IllegalArgumentException.class, () -> eventService.createEvent(request));
+        assertThrows(EventSaleWindowClosedException.class, () -> eventService.createEvent(request));
     }
 }

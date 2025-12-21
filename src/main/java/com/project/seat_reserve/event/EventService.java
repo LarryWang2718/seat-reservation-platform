@@ -6,6 +6,10 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
+import com.project.seat_reserve.common.exception.InvalidEventTimeRangeException;
+import com.project.seat_reserve.common.exception.InvalidSaleWindowException;
+import com.project.seat_reserve.common.exception.SaleWindowAfterEventStartException;
 import com.project.seat_reserve.event.dto.CreateEventRequest;
 import com.project.seat_reserve.event.dto.EventResponse;
 
@@ -17,7 +21,7 @@ public class EventService {
     private final EventRepository eventRepository;
 
     public EventResponse createEvent(CreateEventRequest request) {
-        validateRequest(request);
+        validateEventRequest(request);
 
         Event event = new Event();
         event.setName(request.getName());
@@ -31,29 +35,28 @@ public class EventService {
     }
 
     public List<EventResponse> getAllEvents() {
-        List<Event> events = eventRepository.findAll();
-        return events.stream()
+        return eventRepository.findAll().stream()
             .map(this::toResponse)
             .collect(Collectors.toList());
     }
 
-    private void validateRequest(CreateEventRequest request) {
+    private void validateEventRequest(CreateEventRequest request) {
         LocalDateTime now = LocalDateTime.now();
 
         if (!request.getEndTime().isAfter(request.getStartTime())) {
-            throw new IllegalArgumentException("Event end time must be after start time");
+            throw new InvalidEventTimeRangeException();
         }
 
         if (!request.getSaleEndTime().isAfter(request.getSaleStartTime())) {
-            throw new IllegalArgumentException("Sale end time must be after sale start time");
+            throw new InvalidSaleWindowException();
         }
 
         if (!request.getStartTime().isAfter(request.getSaleEndTime())) {
-            throw new IllegalArgumentException("Sale end time cannot be after event start time");
+            throw new SaleWindowAfterEventStartException();
         }
 
         if (!request.getSaleEndTime().isAfter(now)) {
-            throw new IllegalArgumentException("Cannot create an event whose sale window has already ended");
+            throw new EventSaleWindowClosedException();
         }
     }
 

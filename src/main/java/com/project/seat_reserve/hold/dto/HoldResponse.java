@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 public class HoldResponse {
     private Long id;
     private Long seatId;
-    private String sessionId;
+    private Long orderId;
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
     private HoldStatus status;

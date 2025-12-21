@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
 
+import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
@@ -22,7 +23,7 @@ public class OrderService {
     public OrderResponse createOrder(CreateOrderRequest request) {
         Order order = new Order();
         order.setSessionId(request.getSessionId());
-        order.setEvent(eventRepository.findById(request.getEventId()).orElseThrow(() -> new IllegalArgumentException("Event not found")));
+        order.setEvent(eventRepository.findById(request.getEventId()).orElseThrow(() -> new EventNotFoundException(request.getEventId())));
         order.setStatus(OrderStatus.PENDING);
         order.setCreatedAt(LocalDateTime.now());
         return toResponse(orderRepository.save(order));

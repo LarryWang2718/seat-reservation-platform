@@ -2,7 +2,10 @@ package com.project.seat_reserve.ticket.dto;
 
 import java.time.LocalDateTime;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -10,7 +13,6 @@ import lombok.*;
 @AllArgsConstructor
 public class TicketResponse {
     private Long id;
-    private Long eventId;
     private Long seatId;
     private Long orderId;
     private LocalDateTime createdAt;
