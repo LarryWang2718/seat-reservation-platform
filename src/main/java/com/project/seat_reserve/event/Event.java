@@ -58,4 +58,18 @@ public class Event {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private EventStatus status;
+
+    public static Event create(String name, LocalDateTime startTime, LocalDateTime endTime,
+                               LocalDateTime saleStartTime, LocalDateTime saleEndTime,
+                               String location, EventStatus status) {
+        Event event = new Event();
+        event.setName(name);
+        event.setStartTime(startTime);
+        event.setEndTime(endTime);
+        event.setSaleStartTime(saleStartTime);
+        event.setSaleEndTime(saleEndTime);
+        event.setLocation(location);
+        event.setStatus(status);
+        return event;
+    }
 }

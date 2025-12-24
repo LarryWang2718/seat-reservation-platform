@@ -40,13 +40,8 @@ public class HoldService {
         Seat seat = getRequiredSeat(createHoldRequest.getSeatId());
         validateHoldRequest(order, seat);
 
-        Hold hold = new Hold();
-        hold.setSeat(seat);
-        hold.setOrder(order);
         LocalDateTime currentTime = LocalDateTime.now();
-        hold.setExpiresAt(currentTime.plusMinutes(5));
-        hold.setCreatedAt(currentTime);
-        hold.setStatus(HoldStatus.HELD);
+        Hold hold = Hold.createHeld(order, seat, currentTime, currentTime.plusMinutes(5));
         return toResponse(holdRepository.save(hold));
     }
 

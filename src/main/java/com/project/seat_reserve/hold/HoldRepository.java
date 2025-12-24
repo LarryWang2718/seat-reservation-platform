@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface HoldRepository extends JpaRepository<Hold, Long> {
     List<Hold> findByOrderId(Long orderId);
+    List<Hold> findByOrderIdAndStatus(Long orderId, HoldStatus status);
 
     long countByOrderIdAndStatus(Long orderId, HoldStatus status);
 

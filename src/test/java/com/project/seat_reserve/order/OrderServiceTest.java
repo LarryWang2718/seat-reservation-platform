@@ -2,9 +2,13 @@ package com.project.seat_reserve.order;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -19,12 +23,18 @@ import com.project.seat_reserve.common.exception.ActiveOrderAlreadyExistsExcepti
 import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.common.exception.EventNotOpenForOrderingException;
 import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
+import com.project.seat_reserve.common.exception.InvalidHoldState;
 import com.project.seat_reserve.common.exception.InvalidSessionIdException;
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.event.EventStatus;
+import com.project.seat_reserve.hold.Hold;
+import com.project.seat_reserve.hold.HoldRepository;
+import com.project.seat_reserve.hold.HoldStatus;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
+import com.project.seat_reserve.seat.Seat;
+import com.project.seat_reserve.ticket.TicketRepository;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -33,6 +43,15 @@ class OrderServiceTest {
 
     @Mock
     private EventRepository eventRepository;
+
+    @Mock
+    private HoldRepository holdRepository;
+
+    @Mock
+    private TicketRepository ticketRepository;
+
+    @Mock
+    private OrderCancellationService orderCancellationService;
 
     @InjectMocks
     private OrderService orderService;
@@ -120,6 +139,59 @@ class OrderServiceTest {
         assertThrows(EventNotOpenForOrderingException.class, () -> orderService.createOrder(new CreateOrderRequest("session-123", 1L)));
     }
 
+    @Test
+    void confirmOrderCompletesOrderAndMarksHoldsConfirmed() {
+        Event event = buildEvent(1L, EventStatus.ON_SALE, LocalDateTime.now().minusHours(1), LocalDateTime.now().plusHours(3));
+        Order order = buildOrder(10L, event, OrderStatus.PENDING);
+        Hold firstHold = buildHold(100L, order, 200L, HoldStatus.HELD, LocalDateTime.now().plusMinutes(5));
+        Hold secondHold = buildHold(101L, order, 201L, HoldStatus.HELD, LocalDateTime.now().plusMinutes(5));
+
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(holdRepository.findByOrderId(10L)).thenReturn(List.of(firstHold, secondHold));
+        when(ticketRepository.existsBySeatId(200L)).thenReturn(false);
+        when(ticketRepository.existsBySeatId(201L)).thenReturn(false);
+
+        OrderResponse response = orderService.confirmOrder(10L);
+
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        assertEquals(HoldStatus.CONFIRMED, firstHold.getStatus());
+        assertEquals(HoldStatus.CONFIRMED, secondHold.getStatus());
+        assertEquals(OrderStatus.COMPLETED, response.getStatus());
+        verify(ticketRepository).saveAll(anyList());
+        verify(orderCancellationService, never()).cancelOrder(10L);
+    }
+
+    @Test
+    void confirmOrderCancelsOrderWhenHoldValidationFails() {
+        Event event = buildEvent(1L, EventStatus.ON_SALE, LocalDateTime.now().minusHours(1), LocalDateTime.now().plusHours(3));
+        Order order = buildOrder(10L, event, OrderStatus.PENDING);
+        Hold expiredHold = buildHold(100L, order, 200L, HoldStatus.HELD, LocalDateTime.now().minusMinutes(1));
+
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(holdRepository.findByOrderId(10L)).thenReturn(List.of(expiredHold));
+
+        assertThrows(InvalidHoldState.class, () -> orderService.confirmOrder(10L));
+
+        verify(orderCancellationService).cancelOrder(10L);
+        verify(ticketRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void confirmOrderCancelsOrderWhenTicketSaveFails() {
+        Event event = buildEvent(1L, EventStatus.ON_SALE, LocalDateTime.now().minusHours(1), LocalDateTime.now().plusHours(3));
+        Order order = buildOrder(10L, event, OrderStatus.PENDING);
+        Hold hold = buildHold(100L, order, 200L, HoldStatus.HELD, LocalDateTime.now().plusMinutes(5));
+
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(holdRepository.findByOrderId(10L)).thenReturn(List.of(hold));
+        when(ticketRepository.existsBySeatId(200L)).thenReturn(false);
+        when(ticketRepository.saveAll(anyList())).thenThrow(new RuntimeException("db failure"));
+
+        assertThrows(RuntimeException.class, () -> orderService.confirmOrder(10L));
+
+        verify(orderCancellationService).cancelOrder(10L);
+    }
+
     private Event buildEvent(Long eventId, EventStatus status, LocalDateTime saleStartTime, LocalDateTime saleEndTime) {
         Event event = new Event();
         event.setId(eventId);
@@ -131,5 +203,33 @@ class OrderServiceTest {
         event.setLocation("Arena");
         event.setStatus(status);
         return event;
+    }
+
+    private Order buildOrder(Long orderId, Event event, OrderStatus status) {
+        Order order = new Order();
+        order.setId(orderId);
+        order.setEvent(event);
+        order.setSessionId("session-123");
+        order.setStatus(status);
+        order.setCreatedAt(LocalDateTime.now());
+        return order;
+    }
+
+    private Hold buildHold(Long holdId, Order order, Long seatId, HoldStatus status, LocalDateTime expiresAt) {
+        Seat seat = new Seat();
+        seat.setId(seatId);
+        seat.setEvent(order.getEvent());
+        seat.setSection("A");
+        seat.setRowLabel("1");
+        seat.setSeatNumber(String.valueOf(seatId));
+
+        Hold hold = new Hold();
+        hold.setId(holdId);
+        hold.setOrder(order);
+        hold.setSeat(seat);
+        hold.setCreatedAt(LocalDateTime.now());
+        hold.setExpiresAt(expiresAt);
+        hold.setStatus(status);
+        return hold;
     }
 }

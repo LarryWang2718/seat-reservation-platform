@@ -12,7 +12,10 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "seat")
@@ -38,4 +41,13 @@ public class Seat {
 
     @NotBlank(message = "Seat number is required")
     private String seatNumber;
+
+    public static Seat create(Event event, String section, String rowLabel, String seatNumber) {
+        Seat seat = new Seat();
+        seat.setEvent(event);
+        seat.setSection(section);
+        seat.setRowLabel(rowLabel);
+        seat.setSeatNumber(seatNumber);
+        return seat;
+    }
 }

@@ -23,14 +23,15 @@ public class EventService {
     public EventResponse createEvent(CreateEventRequest request) {
         validateEventRequest(request);
 
-        Event event = new Event();
-        event.setName(request.getName());
-        event.setStartTime(request.getStartTime());
-        event.setEndTime(request.getEndTime());
-        event.setSaleStartTime(request.getSaleStartTime());
-        event.setSaleEndTime(request.getSaleEndTime());
-        event.setLocation(request.getLocation());
-        event.setStatus(determineInitialStatus(request));
+        Event event = Event.create(
+            request.getName(),
+            request.getStartTime(),
+            request.getEndTime(),
+            request.getSaleStartTime(),
+            request.getSaleEndTime(),
+            request.getLocation(),
+            determineInitialStatus(request)
+        );
         return toResponse(eventRepository.save(event));
     }
 

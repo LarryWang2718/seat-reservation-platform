@@ -66,11 +66,8 @@ class TicketServiceTest {
 
         LocalDateTime createdAt = LocalDateTime.now();
 
-        Ticket savedTicket = new Ticket();
+        Ticket savedTicket = Ticket.createForOrder(seat, order, createdAt);
         savedTicket.setId(100L);
-        savedTicket.setSeat(seat);
-        savedTicket.setOrder(order);
-        savedTicket.setCreatedAt(createdAt);
 
         when(seatRepository.findById(10L)).thenReturn(Optional.of(seat));
         when(orderRepository.findById(20L)).thenReturn(Optional.of(order));

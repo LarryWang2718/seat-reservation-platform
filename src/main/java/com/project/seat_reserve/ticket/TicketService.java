@@ -32,10 +32,8 @@ public class TicketService {
         Seat seat = getRequiredSeat(request.getSeatId());
         Order order = getRequiredOrder(request.getOrderId());
         validateTicketRequest(seat, order);
-        Ticket ticket = new Ticket();
-        ticket.setSeat(seatRepository.findById(request.getSeatId()).orElseThrow(() -> new SeatNotFoundException(request.getSeatId())));
-        ticket.setOrder(orderRepository.findById(request.getOrderId()).orElseThrow(() -> new OrderNotFoundException(request.getOrderId())));
-        ticket.setCreatedAt(LocalDateTime.now());
+
+        Ticket ticket = Ticket.createForOrder(seat, order, LocalDateTime.now());
         return toResponse(ticketRepository.save(ticket));
     }
 

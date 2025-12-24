@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.project.seat_reserve.common.exception.EventNotFoundException;
+import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.seat.dto.CreateSeatRequest;
 import com.project.seat_reserve.seat.dto.SeatResponse;
@@ -21,15 +22,10 @@ public class SeatService {
 
     @Transactional
     public SeatResponse createSeat(CreateSeatRequest request) {
-        Seat seat = new Seat();
-        seat.setEvent(
-            eventRepository.findById(request.getEventId())
-                .orElseThrow(() -> new EventNotFoundException(request.getEventId()))
-        );
-        seat.setSection(request.getSection());
-        seat.setRowLabel(request.getRowLabel());
-        seat.setSeatNumber(request.getSeatNumber());
+        Event event = eventRepository.findById(request.getEventId())
+            .orElseThrow(() -> new EventNotFoundException(request.getEventId()));
 
+        Seat seat = Seat.create(event, request.getSection(), request.getRowLabel(), request.getSeatNumber());
         return toResponse(seatRepository.save(seat));
     }
 

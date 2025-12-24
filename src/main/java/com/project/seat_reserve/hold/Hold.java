@@ -16,9 +16,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "hold")
@@ -33,12 +35,12 @@ public class Hold {
 
     @NotNull(message = "Seat cannot be null")
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seat_id")
+    @JoinColumn(name = "seat_id", nullable = false)
     private Seat seat;
 
     @NotNull(message = "Order cannot be null")
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id")
+    @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
     @NotNull(message = "Expires at cannot be null")
@@ -53,4 +55,26 @@ public class Hold {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private HoldStatus status;
+
+    public static Hold createHeld(Order order, Seat seat, LocalDateTime createdAt, LocalDateTime expiresAt) {
+        Hold hold = new Hold();
+        hold.setOrder(order);
+        hold.setSeat(seat);
+        hold.setCreatedAt(createdAt);
+        hold.setExpiresAt(expiresAt);
+        hold.setStatus(HoldStatus.HELD);
+        return hold;
+    }
+
+    public void markConfirmed() {
+        this.status = HoldStatus.CONFIRMED;
+    }
+
+    public void markExpired() {
+        this.status = HoldStatus.EXPIRED;
+    }
+
+    public void markCancelled() {
+        this.status = HoldStatus.CANCELLED;
+    }
 }
