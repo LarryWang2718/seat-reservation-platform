@@ -25,6 +25,7 @@ import com.project.seat_reserve.common.exception.EventNotOpenForOrderingExceptio
 import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
 import com.project.seat_reserve.common.exception.InvalidHoldState;
 import com.project.seat_reserve.common.exception.InvalidSessionIdException;
+import com.project.seat_reserve.common.exception.NoActiveHoldsForOrderException;
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.event.EventStatus;
@@ -171,6 +172,22 @@ class OrderServiceTest {
         when(holdRepository.findByOrderId(10L)).thenReturn(List.of(expiredHold));
 
         assertThrows(InvalidHoldState.class, () -> orderService.confirmOrder(10L));
+
+        verify(orderCancellationService).cancelOrder(10L);
+        verify(ticketRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void confirmOrderRejectsWhenAllHoldsAreNoLongerActive() {
+        Event event = buildEvent(1L, EventStatus.ON_SALE, LocalDateTime.now().minusHours(1), LocalDateTime.now().plusHours(3));
+        Order order = buildOrder(10L, event, OrderStatus.PENDING);
+        Hold cancelledHold = buildHold(100L, order, 200L, HoldStatus.CANCELLED, LocalDateTime.now().plusMinutes(5));
+        Hold expiredHold = buildHold(101L, order, 201L, HoldStatus.EXPIRED, LocalDateTime.now().minusMinutes(1));
+
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(holdRepository.findByOrderId(10L)).thenReturn(List.of(cancelledHold, expiredHold));
+
+        assertThrows(NoActiveHoldsForOrderException.class, () -> orderService.confirmOrder(10L));
 
         verify(orderCancellationService).cancelOrder(10L);
         verify(ticketRepository, never()).saveAll(anyList());

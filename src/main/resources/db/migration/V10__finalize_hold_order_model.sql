@@ -1,0 +1,8 @@
+DELETE FROM hold
+WHERE order_id IS NULL;
+
+ALTER TABLE hold
+DROP COLUMN session_id;
+
+ALTER TABLE hold
+ALTER COLUMN order_id SET NOT NULL;

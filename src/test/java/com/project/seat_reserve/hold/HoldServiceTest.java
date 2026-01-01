@@ -2,7 +2,10 @@ package com.project.seat_reserve.hold;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -188,6 +191,20 @@ class HoldServiceTest {
         when(orderRepository.findById(20L)).thenReturn(Optional.of(order));
         when(seatRepository.findById(10L)).thenReturn(Optional.of(seat));
         when(holdRepository.existsBySeatIdAndStatus(10L, HoldStatus.HELD)).thenReturn(true);
+
+        assertThrows(SeatAlreadyHeldException.class, () -> holdService.createHold(new CreateHoldRequest(10L, 20L)));
+    }
+
+    @Test
+    void createHoldTranslatesConstraintViolationToSeatAlreadyHeld() {
+        Event event = buildEvent(1L);
+        Seat seat = buildSeat(10L, event);
+        Order order = buildOrder(20L, event, OrderStatus.PENDING);
+
+        when(orderRepository.findById(20L)).thenReturn(Optional.of(order));
+        when(seatRepository.findById(10L)).thenReturn(Optional.of(seat));
+        when(holdRepository.save(any(Hold.class)))
+            .thenThrow(new DataIntegrityViolationException("unique constraint violated"));
 
         assertThrows(SeatAlreadyHeldException.class, () -> holdService.createHold(new CreateHoldRequest(10L, 20L)));
     }

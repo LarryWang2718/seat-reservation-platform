@@ -82,7 +82,7 @@ public class OrderService {
 
     private List<Hold> loadConfirmableHolds(Long orderId) {
         List<Hold> holds = holdRepository.findByOrderId(orderId);
-        if (holds.isEmpty()) {
+        if (holds.isEmpty() || holds.stream().noneMatch(h -> h.getStatus() == HoldStatus.HELD)) {
             throw new NoActiveHoldsForOrderException(orderId);
         }
         validateConfirmableHolds(holds);

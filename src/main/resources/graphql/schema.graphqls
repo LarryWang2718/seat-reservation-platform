@@ -1,11 +1,15 @@
 type Query {
   events: [Event!]!
   seatsByEvent(eventId: ID!): [Seat!]!
+  holdsByOrder(orderId: ID!): [Hold!]!
 }
 
 type Mutation {
   createEvent(input: CreateEventInput!): Event!
   createSeat(input: CreateSeatInput!): Seat!
+  createOrder(input: CreateOrderInput!): Order!
+  createHold(input: CreateHoldInput!): Hold!
+  confirmOrder(orderId: ID!): Order!
 }
 
 type Event {
@@ -27,6 +31,23 @@ type Seat {
   seatNumber: String!
 }
 
+type Order {
+  id: ID!
+  eventId: ID!
+  sessionId: String!
+  status: String!
+  createdAt: String!
+}
+
+type Hold {
+  id: ID!
+  seatId: ID!
+  orderId: ID!
+  expiresAt: String!
+  createdAt: String!
+  status: String!
+}
+
 input CreateEventInput {
   name: String!
   startTime: String!
@@ -41,4 +62,14 @@ input CreateSeatInput {
   section: String!
   rowLabel: String!
   seatNumber: String!
+}
+
+input CreateOrderInput {
+  sessionId: String!
+  eventId: ID!
+}
+
+input CreateHoldInput {
+  seatId: ID!
+  orderId: ID!
 }

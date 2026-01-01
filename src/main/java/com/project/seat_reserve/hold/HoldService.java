@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.project.seat_reserve.common.exception.HoldLimitExceededException;
@@ -42,7 +43,11 @@ public class HoldService {
 
         LocalDateTime currentTime = LocalDateTime.now();
         Hold hold = Hold.createHeld(order, seat, currentTime, currentTime.plusMinutes(5));
-        return toResponse(holdRepository.save(hold));
+        try {
+            return toResponse(holdRepository.save(hold));
+        } catch (DataIntegrityViolationException e) {
+            throw new SeatAlreadyHeldException(seat.getId());
+        }
     }
 
     public List<HoldResponse> getHoldsByOrderId(Long orderId) {
