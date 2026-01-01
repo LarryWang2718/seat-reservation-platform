@@ -9,7 +9,7 @@ import com.project.seat_reserve.common.exception.ActiveOrderAlreadyExistsExcepti
 import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.common.exception.EventNotOpenForOrderingException;
 import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
-import com.project.seat_reserve.common.exception.InvalidHoldState;
+import com.project.seat_reserve.common.exception.InvalidHoldStateException;
 import com.project.seat_reserve.common.exception.InvalidSessionIdException;
 import com.project.seat_reserve.common.exception.NoActiveHoldsForOrderException;
 import com.project.seat_reserve.common.exception.OrderNotFoundException;
@@ -94,10 +94,10 @@ public class OrderService {
         for (Hold hold : holds) {
             HoldStatus holdStatus = hold.getStatus();
             if (hold.getExpiresAt().isBefore(currentTime)) {
-                throw new InvalidHoldState(hold.getId(), HoldStatus.EXPIRED);
+                throw new InvalidHoldStateException(hold.getId(), HoldStatus.EXPIRED);
             }
             if (holdStatus != HoldStatus.HELD) {
-                throw new InvalidHoldState(hold.getId(), holdStatus);
+                throw new InvalidHoldStateException(hold.getId(), holdStatus);
             }
             if (ticketRepository.existsBySeatId(hold.getSeat().getId())) {
                 throw new SeatAlreadySoldException(hold.getSeat().getId());

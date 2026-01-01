@@ -17,7 +17,7 @@ import com.project.seat_reserve.common.exception.EventNotOpenForOrderingExceptio
 import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
 import com.project.seat_reserve.common.exception.HoldLimitExceededException;
 import com.project.seat_reserve.common.exception.InvalidEventTimeRangeException;
-import com.project.seat_reserve.common.exception.InvalidHoldState;
+import com.project.seat_reserve.common.exception.InvalidHoldStateException;
 import com.project.seat_reserve.common.exception.InvalidSaleWindowException;
 import com.project.seat_reserve.common.exception.InvalidSessionIdException;
 import com.project.seat_reserve.common.exception.NoActiveHoldsForOrderException;
@@ -83,7 +83,7 @@ public class GraphQlExceptionResolver extends DataFetcherExceptionResolverAdapte
             || ex instanceof EventSaleWindowClosedException
             || ex instanceof HoldLimitExceededException
             || ex instanceof InvalidEventTimeRangeException
-            || ex instanceof InvalidHoldState
+            || ex instanceof InvalidHoldStateException
             || ex instanceof InvalidSaleWindowException
             || ex instanceof InvalidSessionIdException
             || ex instanceof NoActiveHoldsForOrderException

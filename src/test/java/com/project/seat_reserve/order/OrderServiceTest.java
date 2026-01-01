@@ -23,7 +23,7 @@ import com.project.seat_reserve.common.exception.ActiveOrderAlreadyExistsExcepti
 import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.common.exception.EventNotOpenForOrderingException;
 import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
-import com.project.seat_reserve.common.exception.InvalidHoldState;
+import com.project.seat_reserve.common.exception.InvalidHoldStateException;
 import com.project.seat_reserve.common.exception.InvalidSessionIdException;
 import com.project.seat_reserve.common.exception.NoActiveHoldsForOrderException;
 import com.project.seat_reserve.event.Event;
@@ -171,7 +171,7 @@ class OrderServiceTest {
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
         when(holdRepository.findByOrderId(10L)).thenReturn(List.of(expiredHold));
 
-        assertThrows(InvalidHoldState.class, () -> orderService.confirmOrder(10L));
+        assertThrows(InvalidHoldStateException.class, () -> orderService.confirmOrder(10L));
 
         verify(orderCancellationService).cancelOrder(10L);
         verify(ticketRepository, never()).saveAll(anyList());
