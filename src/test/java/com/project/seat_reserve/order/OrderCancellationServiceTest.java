@@ -34,7 +34,7 @@ class OrderCancellationServiceTest {
     private OrderCancellationService orderCancellationService;
 
     @Test
-    void cancelOrderMarksOrderAndAllHoldsCancelled() {
+    void cancelOrderMarksOrderAndCancellableHoldsCancelled() {
         Event event = new Event();
         event.setId(1L);
         event.setStatus(EventStatus.ON_SALE);
@@ -57,6 +57,32 @@ class OrderCancellationServiceTest {
         assertEquals(OrderStatus.CANCELLED, order.getStatus());
         assertEquals(HoldStatus.CANCELLED, firstHold.getStatus());
         assertEquals(HoldStatus.CANCELLED, secondHold.getStatus());
+    }
+
+    @Test
+    void cancelOrderPreservesConfirmedHolds() {
+        Event event = new Event();
+        event.setId(1L);
+        event.setStatus(EventStatus.ON_SALE);
+
+        Order order = new Order();
+        order.setId(10L);
+        order.setEvent(event);
+        order.setSessionId("session-123");
+        order.setStatus(OrderStatus.PENDING);
+        order.setCreatedAt(LocalDateTime.now());
+
+        Hold heldHold = buildHold(100L, order, 200L, HoldStatus.HELD);
+        Hold confirmedHold = buildHold(101L, order, 201L, HoldStatus.CONFIRMED);
+
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(holdRepository.findByOrderId(10L)).thenReturn(List.of(heldHold, confirmedHold));
+
+        orderCancellationService.cancelOrder(10L);
+
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        assertEquals(HoldStatus.CANCELLED, heldHold.getStatus());
+        assertEquals(HoldStatus.CONFIRMED, confirmedHold.getStatus());
     }
 
     @Test

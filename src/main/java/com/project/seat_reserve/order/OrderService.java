@@ -3,17 +3,20 @@ package com.project.seat_reserve.order;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.project.seat_reserve.common.exception.ActiveOrderAlreadyExistsException;
 import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.common.exception.EventNotOpenForOrderingException;
-import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
 import com.project.seat_reserve.common.exception.InvalidHoldStateException;
 import com.project.seat_reserve.common.exception.InvalidSessionIdException;
 import com.project.seat_reserve.common.exception.NoActiveHoldsForOrderException;
+import com.project.seat_reserve.common.exception.OrderCleanupFailedException;
 import com.project.seat_reserve.common.exception.OrderNotFoundException;
 import com.project.seat_reserve.common.exception.OrderNotPendingException;
+import com.project.seat_reserve.common.exception.OrderSaleWindowClosedException;
 import com.project.seat_reserve.common.exception.SeatAlreadySoldException;
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
@@ -32,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class OrderService {
+    private static final String PENDING_ORDER_UNIQUE_INDEX = "uq_order_pending_session_event";
 
     private final OrderRepository orderRepository;
     private final EventRepository eventRepository;
@@ -46,7 +50,14 @@ public class OrderService {
         validateOrderRequest(request, event);
 
         Order order = Order.createPending(event, request.getSessionId(), LocalDateTime.now());
-        return toResponse(orderRepository.save(order));
+        try {
+            return toResponse(orderRepository.save(order));
+        } catch (DataIntegrityViolationException e) {
+            if (isPendingOrderUniqueViolation(e)) {
+                throw new ActiveOrderAlreadyExistsException(request.getSessionId(), event.getId());
+            }
+            throw e;
+        }
     }
 
     @Transactional
@@ -66,7 +77,11 @@ public class OrderService {
 
             return toResponse(order);
         } catch (RuntimeException exception) {
-            orderCancellationService.cancelOrder(orderId);
+            try {
+                orderCancellationService.cancelOrder(orderId);
+            } catch (RuntimeException cancellationException) {
+                throw new OrderCleanupFailedException(orderId, exception, cancellationException);
+            }
             throw exception;
         }
     }
@@ -116,7 +131,7 @@ public class OrderService {
             throw new ActiveOrderAlreadyExistsException(sessionId, event.getId());
         }
         if (!now.isBefore(event.getSaleEndTime())) {
-            throw new EventSaleWindowClosedException();
+            throw new OrderSaleWindowClosedException(event.getId());
         }
         if (now.isBefore(event.getSaleStartTime())
             || event.getStatus() == EventStatus.CANCELLED
@@ -124,6 +139,22 @@ public class OrderService {
             || event.getStatus() == EventStatus.ENDED) {
             throw new EventNotOpenForOrderingException(event.getId());
         }
+    }
+
+    private boolean isPendingOrderUniqueViolation(DataIntegrityViolationException exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolationException
+                && PENDING_ORDER_UNIQUE_INDEX.equals(constraintViolationException.getConstraintName())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+
+        Throwable mostSpecificCause = exception.getMostSpecificCause();
+        return mostSpecificCause != null
+            && mostSpecificCause.getMessage() != null
+            && mostSpecificCause.getMessage().contains(PENDING_ORDER_UNIQUE_INDEX);
     }
 
     private OrderResponse toResponse(Order order) {

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.project.seat_reserve.common.exception.OrderNotFoundException;
 import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
+import com.project.seat_reserve.hold.HoldStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -24,10 +25,13 @@ public class OrderCancellationService {
             .orElseThrow(() -> new OrderNotFoundException(orderId));
         List<Hold> holds = holdRepository.findByOrderId(orderId);
 
-        holds.forEach(Hold::markCancelled);
+        List<Hold> cancellableHolds = holds.stream()
+            .filter(h -> h.getStatus() != HoldStatus.CONFIRMED)
+            .toList();
+        cancellableHolds.forEach(Hold::markCancelled);
         order.markCancelled();
 
-        holdRepository.saveAll(holds);
+        holdRepository.saveAll(cancellableHolds);
         orderRepository.save(order);
     }
 }

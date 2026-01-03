@@ -12,6 +12,7 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import com.project.seat_reserve.common.exception.ActiveOrderAlreadyExistsException;
+import com.project.seat_reserve.common.exception.OrderCleanupFailedException;
 import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.common.exception.EventNotOpenForOrderingException;
 import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
@@ -23,6 +24,7 @@ import com.project.seat_reserve.common.exception.InvalidSessionIdException;
 import com.project.seat_reserve.common.exception.NoActiveHoldsForOrderException;
 import com.project.seat_reserve.common.exception.OrderNotFoundException;
 import com.project.seat_reserve.common.exception.OrderNotPendingException;
+import com.project.seat_reserve.common.exception.OrderSaleWindowClosedException;
 import com.project.seat_reserve.common.exception.SaleWindowAfterEventStartException;
 import com.project.seat_reserve.common.exception.SeatAlreadyHeldByOrderException;
 import com.project.seat_reserve.common.exception.SeatAlreadyHeldException;
@@ -67,6 +69,9 @@ public class GraphQlExceptionResolver extends DataFetcherExceptionResolverAdapte
             return buildError(env, "Request violates a data integrity constraint", ErrorType.BAD_REQUEST,
                 ex.getClass().getSimpleName());
         }
+        if (ex instanceof OrderCleanupFailedException) {
+            return buildError(env, ex.getMessage(), ErrorType.INTERNAL_ERROR, ex.getClass().getSimpleName());
+        }
 
         return buildError(env, "Internal server error", ErrorType.INTERNAL_ERROR, ex.getClass().getSimpleName());
     }
@@ -88,6 +93,7 @@ public class GraphQlExceptionResolver extends DataFetcherExceptionResolverAdapte
             || ex instanceof InvalidSessionIdException
             || ex instanceof NoActiveHoldsForOrderException
             || ex instanceof OrderNotPendingException
+            || ex instanceof OrderSaleWindowClosedException
             || ex instanceof SaleWindowAfterEventStartException
             || ex instanceof SeatAlreadyHeldByOrderException
             || ex instanceof SeatAlreadyHeldException
