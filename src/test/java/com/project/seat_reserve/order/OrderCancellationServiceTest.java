@@ -86,6 +86,26 @@ class OrderCancellationServiceTest {
     }
 
     @Test
+    void cancelOrderLeavesCompletedOrderUntouched() {
+        Event event = new Event();
+        event.setId(1L);
+        event.setStatus(EventStatus.ON_SALE);
+
+        Order order = new Order();
+        order.setId(10L);
+        order.setEvent(event);
+        order.setSessionId("session-123");
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setCreatedAt(LocalDateTime.now());
+
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+
+        orderCancellationService.cancelOrder(10L);
+
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+    }
+
+    @Test
     void cancelOrderRejectsMissingOrder() {
         when(orderRepository.findById(99L)).thenReturn(Optional.empty());
 

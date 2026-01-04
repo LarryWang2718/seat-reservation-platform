@@ -23,6 +23,10 @@ public class OrderCancellationService {
     public void cancelOrder(Long orderId) {
         Order order = orderRepository.findById(orderId)
             .orElseThrow(() -> new OrderNotFoundException(orderId));
+        if (order.getStatus() != OrderStatus.PENDING) {
+            return;
+        }
+
         List<Hold> holds = holdRepository.findByOrderId(orderId);
 
         List<Hold> cancellableHolds = holds.stream()

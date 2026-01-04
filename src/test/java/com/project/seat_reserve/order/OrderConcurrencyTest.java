@@ -19,9 +19,12 @@ import com.project.seat_reserve.common.exception.ActiveOrderAlreadyExistsExcepti
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.event.EventStatus;
+import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
+import com.project.seat_reserve.hold.HoldStatus;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
+import com.project.seat_reserve.seat.Seat;
 import com.project.seat_reserve.seat.SeatRepository;
 import com.project.seat_reserve.ticket.TicketRepository;
 
@@ -109,6 +112,53 @@ class OrderConcurrencyTest {
         assertThat(pendingOrders).hasSize(1);
     }
 
+    @Test
+    void concurrentConfirmationsForSameHeldSeatCreateExactlyOneTicket() throws Exception {
+        Event event = createEvent();
+        Seat seat = createSeat(event);
+        Order order = createOrder(event, "confirm-race-session");
+        Hold hold = createHold(order, seat);
+
+        int threadCount = 5;
+        CountDownLatch readyLatch = new CountDownLatch(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+
+        List<Future<ConfirmResult>> futures = new ArrayList<>();
+        for (int i = 0; i < threadCount; i++) {
+            futures.add(executor.submit(() -> {
+                readyLatch.countDown();
+                startLatch.await();
+                try {
+                    OrderResponse response = orderService.confirmOrder(order.getId());
+                    return new ConfirmResult(response, null);
+                } catch (Exception e) {
+                    return new ConfirmResult(null, e);
+                }
+            }));
+        }
+
+        readyLatch.await();
+        startLatch.countDown();
+
+        List<ConfirmResult> results = new ArrayList<>();
+        for (Future<ConfirmResult> future : futures) {
+            results.add(future.get());
+        }
+        executor.shutdown();
+
+        long successCount = results.stream().filter(r -> r.response != null).count();
+        assertThat(successCount).isEqualTo(1);
+        assertThat(ticketRepository.count()).isEqualTo(1);
+
+        Order savedOrder = orderRepository.findById(order.getId()).orElseThrow();
+        Hold savedHold = holdRepository.findById(hold.getId()).orElseThrow();
+
+        assertThat(savedOrder.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        assertThat(savedHold.getStatus()).isEqualTo(HoldStatus.CONFIRMED);
+        assertThat(ticketRepository.existsBySeatId(seat.getId())).isTrue();
+    }
+
     private Event createEvent() {
         Event event = Event.create(
             "Order Concurrency Test Event",
@@ -122,5 +172,20 @@ class OrderConcurrencyTest {
         return eventRepository.save(event);
     }
 
+    private Seat createSeat(Event event) {
+        Seat seat = Seat.create(event, "A", "1", "10");
+        return seatRepository.save(seat);
+    }
+
+    private Order createOrder(Event event, String sessionId) {
+        return orderRepository.save(Order.createPending(event, sessionId, LocalDateTime.now()));
+    }
+
+    private Hold createHold(Order order, Seat seat) {
+        return holdRepository.save(Hold.createHeld(order, seat, LocalDateTime.now(), LocalDateTime.now().plusMinutes(5)));
+    }
+
     private record OrderResult(OrderResponse response, Exception exception) {}
+
+    private record ConfirmResult(OrderResponse response, Exception exception) {}
 }
