@@ -24,6 +24,7 @@ import com.project.seat_reserve.event.EventStatus;
 import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
 import com.project.seat_reserve.hold.HoldStatus;
+import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
 import com.project.seat_reserve.ticket.Ticket;
@@ -42,6 +43,7 @@ public class OrderService {
     private final HoldRepository holdRepository;
     private final TicketRepository ticketRepository;
     private final OrderCancellationService orderCancellationService;
+    private final OutboxEventService outboxEventService;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -71,9 +73,10 @@ public class OrderService {
                 .map(hold -> Ticket.createForOrder(hold.getSeat(), order, confirmationTime))
                 .toList();
 
-            ticketRepository.saveAll(tickets);
+            List<Ticket> savedTickets = ticketRepository.saveAll(tickets);
             holds.forEach(Hold::markConfirmed);
             order.markCompleted();
+            outboxEventService.publishOrderCompleted(order, holds, savedTickets, confirmationTime);
 
             return toResponse(order);
         } catch (RuntimeException exception) {

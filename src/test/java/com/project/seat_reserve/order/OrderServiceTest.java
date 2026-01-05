@@ -37,6 +37,7 @@ import com.project.seat_reserve.event.EventStatus;
 import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
 import com.project.seat_reserve.hold.HoldStatus;
+import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
 import com.project.seat_reserve.seat.Seat;
@@ -58,6 +59,9 @@ class OrderServiceTest {
 
     @Mock
     private OrderCancellationService orderCancellationService;
+
+    @Mock
+    private OutboxEventService outboxEventService;
 
     @InjectMocks
     private OrderService orderService;
@@ -200,6 +204,7 @@ class OrderServiceTest {
         assertEquals(HoldStatus.CONFIRMED, secondHold.getStatus());
         assertEquals(OrderStatus.COMPLETED, response.getStatus());
         verify(ticketRepository).saveAll(anyList());
+        verify(outboxEventService).publishOrderCompleted(any(Order.class), anyList(), anyList(), any(LocalDateTime.class));
         verify(orderCancellationService, never()).cancelOrder(10L);
     }
 
@@ -311,3 +316,5 @@ class OrderServiceTest {
         return hold;
     }
 }
+
+

@@ -3,6 +3,7 @@ package com.project.seat_reserve.hold;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,6 +31,7 @@ import com.project.seat_reserve.common.exception.SeatOrderMismatchException;
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.hold.dto.CreateHoldRequest;
 import com.project.seat_reserve.hold.dto.HoldResponse;
+import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.order.OrderRepository;
 import com.project.seat_reserve.order.OrderStatus;
@@ -50,6 +52,9 @@ class HoldServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
+
+    @Mock
+    private OutboxEventService outboxEventService;
 
     @InjectMocks
     private HoldService holdService;
@@ -94,6 +99,7 @@ class HoldServiceTest {
         assertEquals(HoldStatus.HELD, response.getStatus());
         assertEquals(createdAt, response.getCreatedAt());
         assertEquals(expiresAt, response.getExpiresAt());
+        verify(outboxEventService).publishHoldCreated(savedHold);
     }
 
     @Test
@@ -270,3 +276,5 @@ class HoldServiceTest {
         return order;
     }
 }
+
+

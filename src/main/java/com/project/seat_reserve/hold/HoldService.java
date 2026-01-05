@@ -17,6 +17,7 @@ import com.project.seat_reserve.common.exception.SeatNotFoundException;
 import com.project.seat_reserve.common.exception.SeatOrderMismatchException;
 import com.project.seat_reserve.hold.dto.CreateHoldRequest;
 import com.project.seat_reserve.hold.dto.HoldResponse;
+import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.order.OrderRepository;
 import com.project.seat_reserve.order.OrderStatus;
@@ -34,6 +35,7 @@ public class HoldService {
     private final SeatRepository seatRepository;
     private final HoldRepository holdRepository;
     private final OrderRepository orderRepository;
+    private final OutboxEventService outboxEventService;
 
     @Transactional
     public HoldResponse createHold(CreateHoldRequest createHoldRequest) {
@@ -44,7 +46,9 @@ public class HoldService {
         LocalDateTime currentTime = LocalDateTime.now();
         Hold hold = Hold.createHeld(order, seat, currentTime, currentTime.plusMinutes(5));
         try {
-            return toResponse(holdRepository.save(hold));
+            Hold savedHold = holdRepository.save(hold);
+            outboxEventService.publishHoldCreated(savedHold);
+            return toResponse(savedHold);
         } catch (DataIntegrityViolationException e) {
             throw new SeatAlreadyHeldException(seat.getId());
         }

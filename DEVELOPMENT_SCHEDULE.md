@@ -5,7 +5,8 @@ Use this file as the working checklist for the project. At the end of each day, 
 ## Phase 1: Foundation and event model
 
 - [x] Define package structure for `event`, `seat`, `hold`, `order`, `ticket`
-- [ ] Add package structure for `payment`, `outbox`
+- [ ] Add package structure for `payment`
+- [x] Add package structure for `outbox`
 - [x] Implement `EventStatus`
 - [x] Implement `Event` JPA entity
 - [x] Implement `EventRepository`
@@ -59,13 +60,13 @@ Use this file as the working checklist for the project. At the end of each day, 
 
 ## Phase 5: Transactional outbox / write-ahead log
 
-- [ ] Design `outbox_event` schema
-- [ ] Create Flyway migration for `outbox_event`
-- [ ] Implement `OutboxEvent` entity and repository
-- [ ] Emit outbox records in the same transaction as hold creation
-- [ ] Emit outbox records in the same transaction as checkout completion
-- [ ] Define event payloads for hold created, hold expired, order completed, ticket issued
-- [ ] Add tests proving business write and outbox write commit together
+- [x] Design `outbox_event` schema
+- [x] Create Flyway migration for `outbox_event`
+- [x] Implement `OutboxEvent` entity and repository
+- [x] Emit outbox records in the same transaction as hold creation
+- [x] Emit outbox records in the same transaction as checkout completion
+- [x] Define event payloads for hold created, hold expired, order completed, ticket issued
+- [x] Add tests proving business write and outbox write commit together
 
 ## Phase 6: Projection pipeline
 
