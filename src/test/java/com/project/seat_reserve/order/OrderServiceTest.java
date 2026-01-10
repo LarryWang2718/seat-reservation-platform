@@ -255,6 +255,26 @@ class OrderServiceTest {
         verify(orderCancellationService).cancelOrder(10L);
     }
 
+
+    @Test
+    void confirmOrderDoesNotCancelOrderWhenOutboxPublishFails() {
+        Event event = buildEvent(1L, EventStatus.ON_SALE, LocalDateTime.now().minusHours(1), LocalDateTime.now().plusHours(3));
+        Order order = buildOrder(10L, event, OrderStatus.PENDING);
+        Hold hold = buildHold(100L, order, 200L, HoldStatus.HELD, LocalDateTime.now().plusMinutes(5));
+
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(holdRepository.findByOrderId(10L)).thenReturn(List.of(hold));
+        when(ticketRepository.existsBySeatId(200L)).thenReturn(false);
+        org.mockito.Mockito.doThrow(new RuntimeException("outbox failure"))
+            .when(outboxEventService)
+            .publishOrderCompleted(any(Order.class), anyList(), anyList(), any(LocalDateTime.class));
+
+        assertThrows(RuntimeException.class, () -> orderService.confirmOrder(10L));
+
+        verify(ticketRepository).saveAll(anyList());
+        verify(orderCancellationService, never()).cancelOrder(10L);
+    }
+
     @Test
     void confirmOrderThrowsCleanupFailedWhenCancellationAlsoFails() {
         Event event = buildEvent(1L, EventStatus.ON_SALE, LocalDateTime.now().minusHours(1), LocalDateTime.now().plusHours(3));

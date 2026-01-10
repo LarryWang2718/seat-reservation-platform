@@ -216,6 +216,33 @@ class HoldServiceTest {
     }
 
     @Test
+    void createHoldPropagatesOutboxConstraintViolation() {
+        Event event = buildEvent(1L);
+        Seat seat = buildSeat(10L, event);
+        Order order = buildOrder(20L, event, OrderStatus.PENDING);
+
+        Hold savedHold = new Hold();
+        savedHold.setId(100L);
+        savedHold.setSeat(seat);
+        savedHold.setOrder(order);
+        savedHold.setCreatedAt(LocalDateTime.now());
+        savedHold.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+        savedHold.setStatus(HoldStatus.HELD);
+
+        DataIntegrityViolationException outboxFailure = new DataIntegrityViolationException("outbox constraint violated");
+
+        when(orderRepository.findById(20L)).thenReturn(Optional.of(order));
+        when(seatRepository.findById(10L)).thenReturn(Optional.of(seat));
+        when(holdRepository.save(any(Hold.class))).thenReturn(savedHold);
+        org.mockito.Mockito.doThrow(outboxFailure).when(outboxEventService).publishHoldCreated(savedHold);
+
+        DataIntegrityViolationException thrown = assertThrows(DataIntegrityViolationException.class,
+            () -> holdService.createHold(new CreateHoldRequest(10L, 20L)));
+
+        assertEquals(outboxFailure, thrown);
+    }
+
+    @Test
     void getHoldsByOrderIdMapsRepositoryResults() {
         Event event = buildEvent(1L);
         Seat seat = buildSeat(10L, event);

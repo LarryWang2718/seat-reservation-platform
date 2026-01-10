@@ -6,6 +6,7 @@ public record TicketIssuedPayload(
     Long ticketId,
     Long orderId,
     Long eventId,
+    String sessionId,
     Long seatId,
     String section,
     String rowLabel,

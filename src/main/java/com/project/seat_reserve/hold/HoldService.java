@@ -45,13 +45,14 @@ public class HoldService {
 
         LocalDateTime currentTime = LocalDateTime.now();
         Hold hold = Hold.createHeld(order, seat, currentTime, currentTime.plusMinutes(5));
+        Hold savedHold;
         try {
-            Hold savedHold = holdRepository.save(hold);
-            outboxEventService.publishHoldCreated(savedHold);
-            return toResponse(savedHold);
+            savedHold = holdRepository.save(hold);
         } catch (DataIntegrityViolationException e) {
             throw new SeatAlreadyHeldException(seat.getId());
         }
+        outboxEventService.publishHoldCreated(savedHold);
+        return toResponse(savedHold);
     }
 
     public List<HoldResponse> getHoldsByOrderId(Long orderId) {

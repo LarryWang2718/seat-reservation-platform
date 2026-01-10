@@ -64,6 +64,7 @@ public class OutboxEventService {
                 ticket.getId(),
                 order.getId(),
                 order.getEvent().getId(),
+                order.getSessionId(),
                 ticket.getSeat().getId(),
                 ticket.getSeat().getSection(),
                 ticket.getSeat().getRowLabel(),

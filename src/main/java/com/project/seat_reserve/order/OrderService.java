@@ -65,20 +65,20 @@ public class OrderService {
     @Transactional
     public OrderResponse confirmOrder(Long orderId) {
         Order order = loadPendingOrder(orderId);
+        List<Hold> holds;
+        LocalDateTime confirmationTime;
+        List<Ticket> savedTickets;
 
         try {
-            List<Hold> holds = loadConfirmableHolds(orderId);
-            LocalDateTime confirmationTime = LocalDateTime.now();
+            holds = loadConfirmableHolds(orderId);
+            confirmationTime = LocalDateTime.now();
             List<Ticket> tickets = holds.stream()
                 .map(hold -> Ticket.createForOrder(hold.getSeat(), order, confirmationTime))
                 .toList();
 
-            List<Ticket> savedTickets = ticketRepository.saveAll(tickets);
+            savedTickets = ticketRepository.saveAll(tickets);
             holds.forEach(Hold::markConfirmed);
             order.markCompleted();
-            outboxEventService.publishOrderCompleted(order, holds, savedTickets, confirmationTime);
-
-            return toResponse(order);
         } catch (RuntimeException exception) {
             try {
                 orderCancellationService.cancelOrder(orderId);
@@ -87,6 +87,9 @@ public class OrderService {
             }
             throw exception;
         }
+
+        outboxEventService.publishOrderCompleted(order, holds, savedTickets, confirmationTime);
+        return toResponse(order);
     }
 
     private Order loadPendingOrder(Long orderId) {

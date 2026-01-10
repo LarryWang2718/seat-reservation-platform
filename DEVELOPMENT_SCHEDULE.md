@@ -70,15 +70,20 @@ Use this file as the working checklist for the project. At the end of each day, 
 
 ## Phase 6: Projection pipeline
 
-- [ ] Design projection checkpoint strategy
-- [ ] Create projection table for seat availability
-- [ ] Create projection table for user tickets
-- [ ] Implement ordered projection consumer
-- [ ] Make projection consumer idempotent
-- [ ] Store last processed event/checkpoint
+- [x] Design projection checkpoint strategy
+- [x] Create projection table for seat availability
+- [x] Create projection table for user tickets
+- [x] Implement ordered projection consumer
+- [x] Make projection consumer idempotent
+- [x] Store last processed event/checkpoint
 - [ ] Add replay capability from outbox/event log
 - [ ] Add tests for replay rebuilding seat availability
 - [ ] Add tests for replay rebuilding user ticket view
+
+Blockers / follow-ups:
+- [ ] Implement `HOLD_EXPIRED` projection handling before enabling the hold-expiration producer
+- [ ] Switch GraphQL seat reads to `seat_availability_projection`
+- [ ] Add a GraphQL/user read path backed by `user_ticket_projection`
 
 ## Phase 7: Resilience features
 

@@ -2,6 +2,8 @@ package com.project.seat_reserve.seat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -20,6 +22,9 @@ import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.event.EventStatus;
+import com.project.seat_reserve.projection.SeatAvailabilityProjection;
+import com.project.seat_reserve.projection.SeatAvailabilityProjectionRepository;
+import com.project.seat_reserve.projection.SeatAvailabilityStatus;
 import com.project.seat_reserve.seat.dto.CreateSeatRequest;
 import com.project.seat_reserve.seat.dto.SeatResponse;
 
@@ -31,11 +36,17 @@ class SeatServiceTest {
     @Mock
     private SeatRepository seatRepository;
 
+    @Mock
+    private SeatAvailabilityProjectionRepository seatAvailabilityProjectionRepository;
+
     @InjectMocks
     private SeatService seatService;
 
     @Captor
     private ArgumentCaptor<Seat> seatCaptor;
+
+    @Captor
+    private ArgumentCaptor<SeatAvailabilityProjection> seatAvailabilityCaptor;
 
     @Test
     void createSeatBuildsSeatFromRequest() {
@@ -60,14 +71,20 @@ class SeatServiceTest {
 
         when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
         when(seatRepository.save(seatCaptor.capture())).thenReturn(savedSeat);
+        when(seatAvailabilityProjectionRepository.save(seatAvailabilityCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SeatResponse response = seatService.createSeat(request);
         Seat capturedSeat = seatCaptor.getValue();
+        SeatAvailabilityProjection capturedProjection = seatAvailabilityCaptor.getValue();
 
         assertEquals(event, capturedSeat.getEvent());
         assertEquals("A", capturedSeat.getSection());
         assertEquals("1", capturedSeat.getRowLabel());
         assertEquals("10", capturedSeat.getSeatNumber());
+
+        assertEquals(100L, capturedProjection.getSeatId());
+        assertEquals(1L, capturedProjection.getEventId());
+        assertEquals(SeatAvailabilityStatus.AVAILABLE, capturedProjection.getStatus());
 
         assertEquals(100L, response.getId());
         assertEquals(1L, response.getEventId());
@@ -100,5 +117,6 @@ class SeatServiceTest {
         assertEquals(2, response.size());
         assertEquals("1", response.get(0).getSeatNumber());
         assertEquals("2", response.get(1).getSeatNumber());
+        verify(seatRepository).findByEventId(5L);
     }
 }

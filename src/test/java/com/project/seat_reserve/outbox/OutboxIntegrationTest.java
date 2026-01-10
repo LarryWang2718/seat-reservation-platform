@@ -136,7 +136,7 @@ class OutboxIntegrationTest {
     }
 
     @Test
-    void confirmOrderDoesNotCommitCompletedWriteSetWhenOutboxWriteFails() {
+    void confirmOrderLeavesOrderRetryableWhenOutboxWriteFails() {
         Event event = createEvent();
         Seat seat = createSeat(event);
         Order order = createOrder(event, "checkout-outbox-failure-session");
@@ -152,9 +152,9 @@ class OutboxIntegrationTest {
         assertThat(outboxEventRepository.findAll()).isEmpty();
         assertThat(orderRepository.findById(order.getId())).get()
             .extracting(Order::getStatus)
-            .isEqualTo(OrderStatus.CANCELLED);
+            .isEqualTo(OrderStatus.PENDING);
         assertThat(holdRepository.findByOrderId(order.getId()))
-            .allMatch(hold -> hold.getStatus() == HoldStatus.CANCELLED);
+            .allMatch(hold -> hold.getStatus() == HoldStatus.HELD);
     }
 
     private Event createEvent() {
