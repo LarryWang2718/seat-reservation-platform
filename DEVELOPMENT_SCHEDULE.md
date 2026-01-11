@@ -90,6 +90,7 @@ Blockers / follow-ups:
 - [ ] Add retry policy for failed projection processing
 - [ ] Add DLQ table for poison events
 - [ ] Record failure reason and attempt count
+- [x] Run projection consumer on a schedule
 - [x] Add scheduled job to expire stale holds
 - [x] Process hold expiration in batches
 - [ ] Add batched cleanup for cancellations
@@ -130,4 +131,5 @@ Blockers / follow-ups:
 - [ ] Finish code + tests for those items only
 - [ ] Update this file before stopping for the day
 - [ ] Note blockers directly under the phase you are in
+
 
