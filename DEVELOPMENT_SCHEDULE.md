@@ -87,14 +87,14 @@ Blockers / follow-ups:
 
 ## Phase 7: Resilience features
 
-- [ ] Add retry policy for failed projection processing
-- [ ] Add DLQ table for poison events
-- [ ] Record failure reason and attempt count
+- [x] Add retry policy for failed projection processing
+- [x] Add DLQ table for poison events
+- [x] Record failure reason and attempt count
 - [x] Run projection consumer on a schedule
 - [x] Add scheduled job to expire stale holds
 - [x] Process hold expiration in batches
 - [ ] Add batched cleanup for cancellations
-- [ ] Add tests for retry and DLQ behavior
+- [x] Add tests for retry and DLQ behavior
 - [ ] Add tests for automatic hold expiration
 
 ## Phase 8: GraphQL API
@@ -131,5 +131,6 @@ Blockers / follow-ups:
 - [ ] Finish code + tests for those items only
 - [ ] Update this file before stopping for the day
 - [ ] Note blockers directly under the phase you are in
+
 
 

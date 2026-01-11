@@ -3,9 +3,9 @@ package com.project.seat_reserve.projection;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +24,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.seat_reserve.outbox.HoldCreatedPayload;
@@ -44,6 +45,12 @@ class ProjectionConsumerServiceTest {
     private ProjectionCheckpointRepository projectionCheckpointRepository;
 
     @Mock
+    private ProjectionEventFailureRepository projectionEventFailureRepository;
+
+    @Mock
+    private ProjectionDeadLetterRepository projectionDeadLetterRepository;
+
+    @Mock
     private SeatAvailabilityProjectionRepository seatAvailabilityProjectionRepository;
 
     @Mock
@@ -55,6 +62,12 @@ class ProjectionConsumerServiceTest {
     @Captor
     private ArgumentCaptor<UserTicketProjection> userTicketCaptor;
 
+    @Captor
+    private ArgumentCaptor<ProjectionEventFailure> failureCaptor;
+
+    @Captor
+    private ArgumentCaptor<ProjectionDeadLetter> deadLetterCaptor;
+
     private ProjectionConsumerService projectionConsumerService;
     private ObjectMapper objectMapper;
 
@@ -64,10 +77,13 @@ class ProjectionConsumerServiceTest {
         projectionConsumerService = new ProjectionConsumerService(
             outboxEventRepository,
             projectionCheckpointRepository,
+            projectionEventFailureRepository,
+            projectionDeadLetterRepository,
             seatAvailabilityProjectionRepository,
             userTicketProjectionRepository,
             objectMapper
         );
+        ReflectionTestUtils.setField(projectionConsumerService, "maxAttempts", 3);
     }
 
     @Test
@@ -104,6 +120,7 @@ class ProjectionConsumerServiceTest {
         assertEquals("session-1", userTicketProjection.getSessionId());
         assertEquals(10L, userTicketProjection.getSeatId());
 
+        verify(projectionEventFailureRepository, times(3)).deleteByConsumerNameAndOutboxEventId(any(String.class), any(Long.class));
         verify(projectionCheckpointRepository).save(checkpointCaptor.capture());
         assertEquals(3L, checkpointCaptor.getValue().getLastProcessedEventId());
     }
@@ -269,12 +286,12 @@ class ProjectionConsumerServiceTest {
     }
 
     @Test
-    void processNextBatchDoesNotAdvanceCheckpointWhenProjectionFails() throws Exception {
+    void processNextBatchRecordsRetryableFailureAndLeavesCheckpointBehind() throws Exception {
         String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
         SeatAvailabilityProjection seatProjection = new SeatAvailabilityProjection(
-            10L, 20L, "A", "1", "10", SeatAvailabilityStatus.HELD, 200L, 100L, "session-1", LocalDateTime.of(2026, 3, 17, 10, 5), null, LocalDateTime.now()
+            10L, 20L, "A", "1", "10", SeatAvailabilityStatus.HELD, 200L, 100L, "session-1",
+            LocalDateTime.of(2026, 3, 17, 10, 5), null, LocalDateTime.now()
         );
-
         OutboxEvent ticketIssued = createTicketIssuedEvent(1L, 300L, 200L, 20L, "session-1", 10L, "A", "1", "10",
             LocalDateTime.of(2026, 3, 17, 10, 1));
 
@@ -285,10 +302,53 @@ class ProjectionConsumerServiceTest {
         when(seatAvailabilityProjectionRepository.save(any(SeatAvailabilityProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userTicketProjectionRepository.findById(300L)).thenReturn(Optional.empty());
         when(userTicketProjectionRepository.save(any(UserTicketProjection.class))).thenThrow(new IllegalStateException("projection write failed"));
+        when(projectionEventFailureRepository.findByConsumerNameAndOutboxEventId(consumerName, 1L)).thenReturn(Optional.empty());
+        when(projectionEventFailureRepository.save(failureCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThrows(IllegalStateException.class, () -> projectionConsumerService.processNextBatch(consumerName, 10));
+        int processed = projectionConsumerService.processNextBatch(consumerName, 10);
 
-        verify(projectionCheckpointRepository, never()).save(any(ProjectionCheckpoint.class));
+        assertEquals(0, processed);
+        verify(projectionDeadLetterRepository, never()).save(any(ProjectionDeadLetter.class));
+        verify(projectionCheckpointRepository).save(checkpointCaptor.capture());
+        assertEquals(0L, checkpointCaptor.getValue().getLastProcessedEventId());
+        assertEquals(1, failureCaptor.getValue().getAttemptCount());
+        assertEquals(consumerName, failureCaptor.getValue().getConsumerName());
+        assertEquals(1L, failureCaptor.getValue().getOutboxEventId());
+    }
+
+    @Test
+    void processNextBatchDeadLettersPoisonEventAfterMaxAttemptsAndAdvancesCheckpoint() throws Exception {
+        String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
+        SeatAvailabilityProjection seatProjection = new SeatAvailabilityProjection(
+            10L, 20L, "A", "1", "10", SeatAvailabilityStatus.HELD, 200L, 100L, "session-1",
+            LocalDateTime.of(2026, 3, 17, 10, 5), null, LocalDateTime.now()
+        );
+        OutboxEvent ticketIssued = createTicketIssuedEvent(1L, 300L, 200L, 20L, "session-1", 10L, "A", "1", "10",
+            LocalDateTime.of(2026, 3, 17, 10, 1));
+        ProjectionEventFailure existingFailure = ProjectionEventFailure.start(consumerName, 1L, "IllegalStateException: prior failure", LocalDateTime.of(2026, 3, 17, 10, 2));
+        existingFailure.recordFailure("IllegalStateException: prior failure", LocalDateTime.of(2026, 3, 17, 10, 3));
+
+        when(projectionCheckpointRepository.findById(consumerName)).thenReturn(Optional.of(ProjectionCheckpoint.initialize(consumerName, LocalDateTime.now())));
+        when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class)))
+            .thenReturn(List.of(ticketIssued));
+        when(seatAvailabilityProjectionRepository.findById(10L)).thenReturn(Optional.of(seatProjection));
+        when(seatAvailabilityProjectionRepository.save(any(SeatAvailabilityProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userTicketProjectionRepository.findById(300L)).thenReturn(Optional.empty());
+        when(userTicketProjectionRepository.save(any(UserTicketProjection.class))).thenThrow(new IllegalStateException("projection write failed"));
+        when(projectionEventFailureRepository.findByConsumerNameAndOutboxEventId(consumerName, 1L)).thenReturn(Optional.of(existingFailure));
+        when(projectionEventFailureRepository.save(failureCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(projectionDeadLetterRepository.findByConsumerNameAndOutboxEventId(consumerName, 1L)).thenReturn(Optional.empty());
+        when(projectionDeadLetterRepository.save(deadLetterCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        int processed = projectionConsumerService.processNextBatch(consumerName, 10);
+
+        assertEquals(1, processed);
+        verify(projectionCheckpointRepository).save(checkpointCaptor.capture());
+        assertEquals(1L, checkpointCaptor.getValue().getLastProcessedEventId());
+        assertEquals(3, failureCaptor.getValue().getAttemptCount());
+        assertEquals(1L, deadLetterCaptor.getValue().getOutboxEventId());
+        assertEquals(3, deadLetterCaptor.getValue().getAttemptCount());
+        verify(projectionEventFailureRepository).deleteByConsumerNameAndOutboxEventId(consumerName, 1L);
     }
 
     private OutboxEvent createHoldCreatedEvent(

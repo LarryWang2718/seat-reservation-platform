@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -22,12 +23,19 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectionConsumerService {
     public static final String DEFAULT_CONSUMER_NAME = "seat-and-ticket-projection";
+    private static final int DEFAULT_MAX_ATTEMPTS = 5;
+    private static final int MAX_FAILURE_REASON_LENGTH = 1000;
 
     private final OutboxEventRepository outboxEventRepository;
     private final ProjectionCheckpointRepository projectionCheckpointRepository;
+    private final ProjectionEventFailureRepository projectionEventFailureRepository;
+    private final ProjectionDeadLetterRepository projectionDeadLetterRepository;
     private final SeatAvailabilityProjectionRepository seatAvailabilityProjectionRepository;
     private final UserTicketProjectionRepository userTicketProjectionRepository;
     private final ObjectMapper objectMapper;
+
+    @Value("${app.projection-consumer.max-attempts:5}")
+    private int maxAttempts = DEFAULT_MAX_ATTEMPTS;
 
     @Transactional
     public int processNextBatch(String consumerName, int batchSize) {
@@ -44,13 +52,61 @@ public class ProjectionConsumerService {
             return 0;
         }
 
+        int processedCount = 0;
         for (OutboxEvent outboxEvent : outboxEvents) {
-            applyEvent(outboxEvent);
-            checkpoint.advanceTo(outboxEvent.getId(), LocalDateTime.now());
+            try {
+                applyEvent(outboxEvent);
+                projectionEventFailureRepository.deleteByConsumerNameAndOutboxEventId(consumerName, outboxEvent.getId());
+                checkpoint.advanceTo(outboxEvent.getId(), LocalDateTime.now());
+                processedCount++;
+            } catch (RuntimeException exception) {
+                if (recordFailureOrDeadLetter(consumerName, outboxEvent, exception)) {
+                    checkpoint.advanceTo(outboxEvent.getId(), LocalDateTime.now());
+                    processedCount++;
+                    continue;
+                }
+
+                projectionCheckpointRepository.save(checkpoint);
+                return processedCount;
+            }
         }
 
         projectionCheckpointRepository.save(checkpoint);
-        return outboxEvents.size();
+        return processedCount;
+    }
+
+    private boolean recordFailureOrDeadLetter(String consumerName, OutboxEvent outboxEvent, RuntimeException exception) {
+        LocalDateTime failedAt = LocalDateTime.now();
+        String failureReason = buildFailureReason(exception);
+        ProjectionEventFailure failure = projectionEventFailureRepository.findByConsumerNameAndOutboxEventId(consumerName, outboxEvent.getId())
+            .map(existing -> {
+                existing.recordFailure(failureReason, failedAt);
+                return existing;
+            })
+            .orElseGet(() -> ProjectionEventFailure.start(consumerName, outboxEvent.getId(), failureReason, failedAt));
+
+        projectionEventFailureRepository.save(failure);
+        if (failure.getAttemptCount() < maxAttempts) {
+            return false;
+        }
+
+        projectionDeadLetterRepository.findByConsumerNameAndOutboxEventId(consumerName, outboxEvent.getId())
+            .orElseGet(() -> projectionDeadLetterRepository.save(
+                ProjectionDeadLetter.fromFailure(consumerName, outboxEvent, failure, failedAt)
+            ));
+        projectionEventFailureRepository.deleteByConsumerNameAndOutboxEventId(consumerName, outboxEvent.getId());
+        return true;
+    }
+
+    private String buildFailureReason(RuntimeException exception) {
+        String message = exception.getMessage();
+        String failureReason = message == null || message.isBlank()
+            ? exception.getClass().getSimpleName()
+            : exception.getClass().getSimpleName() + ": " + message;
+        if (failureReason.length() <= MAX_FAILURE_REASON_LENGTH) {
+            return failureReason;
+        }
+        return failureReason.substring(0, MAX_FAILURE_REASON_LENGTH);
     }
 
     private void applyEvent(OutboxEvent outboxEvent) {
