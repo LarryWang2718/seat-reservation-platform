@@ -2,6 +2,7 @@ type Query {
   events: [Event!]!
   seatsByEvent(eventId: ID!): [Seat!]!
   holdsByOrder(orderId: ID!): [Hold!]!
+  ticketsBySession(sessionId: String!): [UserTicket!]!
 }
 
 type Mutation {
@@ -29,6 +30,19 @@ type Seat {
   section: String!
   rowLabel: String!
   seatNumber: String!
+  status: String!
+}
+
+type UserTicket {
+  ticketId: ID!
+  orderId: ID!
+  eventId: ID!
+  sessionId: String!
+  seatId: ID!
+  section: String!
+  rowLabel: String!
+  seatNumber: String!
+  issuedAt: String!
 }
 
 type Order {

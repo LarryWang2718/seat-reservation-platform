@@ -15,4 +15,5 @@ public class SeatResponse {
     private String section;
     private String rowLabel;
     private String seatNumber;
+    private String status;
 }

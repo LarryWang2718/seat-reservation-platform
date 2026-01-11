@@ -89,6 +89,16 @@ public class SeatAvailabilityProjection {
         this.updatedAt = updatedAt;
     }
 
+    public void markAvailable(LocalDateTime updatedAt) {
+        this.status = SeatAvailabilityStatus.AVAILABLE;
+        this.orderId = null;
+        this.holdId = null;
+        this.sessionId = null;
+        this.holdExpiresAt = null;
+        this.ticketId = null;
+        this.updatedAt = updatedAt;
+    }
+
     public void markSold(Long orderId, Long ticketId, String sessionId, LocalDateTime updatedAt) {
         this.status = SeatAvailabilityStatus.SOLD;
         this.orderId = orderId;

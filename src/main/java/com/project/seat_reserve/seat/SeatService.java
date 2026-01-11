@@ -11,6 +11,7 @@ import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.event.EventRepository;
 import com.project.seat_reserve.projection.SeatAvailabilityProjection;
 import com.project.seat_reserve.projection.SeatAvailabilityProjectionRepository;
+import com.project.seat_reserve.projection.SeatAvailabilityStatus;
 import com.project.seat_reserve.seat.dto.CreateSeatRequest;
 import com.project.seat_reserve.seat.dto.SeatResponse;
 
@@ -36,12 +37,30 @@ public class SeatService {
     }
 
     public List<SeatResponse> getSeatsByEventId(Long eventId) {
-        return seatRepository.findByEventId(eventId).stream()
+        return seatAvailabilityProjectionRepository.findByEventIdOrderBySectionAscRowLabelAscSeatNumberAsc(eventId).stream()
             .map(this::toResponse)
             .collect(Collectors.toList());
     }
 
     private SeatResponse toResponse(Seat seat) {
-        return new SeatResponse(seat.getId(), seat.getEvent().getId(), seat.getSection(), seat.getRowLabel(), seat.getSeatNumber());
+        return new SeatResponse(
+            seat.getId(),
+            seat.getEvent().getId(),
+            seat.getSection(),
+            seat.getRowLabel(),
+            seat.getSeatNumber(),
+            SeatAvailabilityStatus.AVAILABLE.name()
+        );
+    }
+
+    private SeatResponse toResponse(SeatAvailabilityProjection projection) {
+        return new SeatResponse(
+            projection.getSeatId(),
+            projection.getEventId(),
+            projection.getSection(),
+            projection.getRowLabel(),
+            projection.getSeatNumber(),
+            projection.getStatus().name()
+        );
     }
 }

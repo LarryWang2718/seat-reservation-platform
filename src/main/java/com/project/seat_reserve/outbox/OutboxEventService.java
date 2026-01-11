@@ -40,6 +40,25 @@ public class OutboxEventService {
         ));
     }
 
+    public OutboxEvent publishHoldExpired(Hold hold, LocalDateTime expiredAt) {
+        HoldExpiredPayload payload = new HoldExpiredPayload(
+            hold.getId(),
+            hold.getOrder().getId(),
+            hold.getOrder().getEvent().getId(),
+            hold.getSeat().getId(),
+            hold.getOrder().getSessionId(),
+            expiredAt
+        );
+
+        return outboxEventRepository.save(OutboxEvent.create(
+            OutboxAggregateType.HOLD,
+            hold.getId(),
+            OutboxEventType.HOLD_EXPIRED,
+            serialize(payload),
+            expiredAt
+        ));
+    }
+
     public List<OutboxEvent> publishOrderCompleted(Order order, List<Hold> holds, List<Ticket> tickets, LocalDateTime completedAt) {
         List<OutboxEvent> outboxEvents = new ArrayList<>();
 

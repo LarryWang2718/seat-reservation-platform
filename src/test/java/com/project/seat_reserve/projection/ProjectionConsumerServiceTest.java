@@ -1,6 +1,8 @@
 package com.project.seat_reserve.projection;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -8,8 +10,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.seat_reserve.outbox.HoldCreatedPayload;
+import com.project.seat_reserve.outbox.HoldExpiredPayload;
 import com.project.seat_reserve.outbox.OrderCompletedPayload;
 import com.project.seat_reserve.outbox.OutboxAggregateType;
 import com.project.seat_reserve.outbox.OutboxEvent;
@@ -71,32 +77,12 @@ class ProjectionConsumerServiceTest {
             10L, 20L, "A", "1", "10", SeatAvailabilityStatus.AVAILABLE, null, null, null, null, null, LocalDateTime.now()
         );
 
-        OutboxEvent holdCreated = OutboxEvent.create(
-            OutboxAggregateType.HOLD,
-            100L,
-            OutboxEventType.HOLD_CREATED,
-            objectMapper.writeValueAsString(new HoldCreatedPayload(100L, 200L, 20L, 10L, "session-1", LocalDateTime.of(2026, 3, 17, 10, 0), LocalDateTime.of(2026, 3, 17, 10, 5))),
-            LocalDateTime.of(2026, 3, 17, 10, 0)
-        );
-        holdCreated.setId(1L);
-
-        OutboxEvent orderCompleted = OutboxEvent.create(
-            OutboxAggregateType.ORDER,
-            200L,
-            OutboxEventType.ORDER_COMPLETED,
-            objectMapper.writeValueAsString(new OrderCompletedPayload(200L, 20L, "session-1", List.of(100L), List.of(300L), LocalDateTime.of(2026, 3, 17, 10, 1))),
-            LocalDateTime.of(2026, 3, 17, 10, 1)
-        );
-        orderCompleted.setId(2L);
-
-        OutboxEvent ticketIssued = OutboxEvent.create(
-            OutboxAggregateType.TICKET,
-            300L,
-            OutboxEventType.TICKET_ISSUED,
-            objectMapper.writeValueAsString(new TicketIssuedPayload(300L, 200L, 20L, "session-1", 10L, "A", "1", "10", LocalDateTime.of(2026, 3, 17, 10, 1))),
-            LocalDateTime.of(2026, 3, 17, 10, 1)
-        );
-        ticketIssued.setId(3L);
+        OutboxEvent holdCreated = createHoldCreatedEvent(1L, 100L, 200L, 20L, 10L, "session-1",
+            LocalDateTime.of(2026, 3, 17, 10, 0), LocalDateTime.of(2026, 3, 17, 10, 5));
+        OutboxEvent orderCompleted = createOrderCompletedEvent(2L, 200L, 20L, "session-1", List.of(100L), List.of(300L),
+            LocalDateTime.of(2026, 3, 17, 10, 1));
+        OutboxEvent ticketIssued = createTicketIssuedEvent(3L, 300L, 200L, 20L, "session-1", 10L, "A", "1", "10",
+            LocalDateTime.of(2026, 3, 17, 10, 1));
 
         when(projectionCheckpointRepository.findById(consumerName)).thenReturn(Optional.empty());
         when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class)))
@@ -123,20 +109,174 @@ class ProjectionConsumerServiceTest {
     }
 
     @Test
+    void processNextBatchProjectsHoldExpiredAndClearsSeatAvailability() throws Exception {
+        String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
+        SeatAvailabilityProjection seatProjection = new SeatAvailabilityProjection(
+            10L, 20L, "A", "1", "10", SeatAvailabilityStatus.HELD, 200L, 100L, "session-1",
+            LocalDateTime.of(2026, 3, 17, 10, 5), null, LocalDateTime.now()
+        );
+        OutboxEvent holdExpired = createHoldExpiredEvent(1L, 100L, 200L, 20L, 10L, "session-1", LocalDateTime.of(2026, 3, 17, 10, 6));
+
+        when(projectionCheckpointRepository.findById(consumerName)).thenReturn(Optional.of(ProjectionCheckpoint.initialize(consumerName, LocalDateTime.now())));
+        when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class)))
+            .thenReturn(List.of(holdExpired));
+        when(seatAvailabilityProjectionRepository.findById(10L)).thenReturn(Optional.of(seatProjection));
+        when(seatAvailabilityProjectionRepository.save(any(SeatAvailabilityProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        int processed = projectionConsumerService.processNextBatch(consumerName, 10);
+
+        assertEquals(1, processed);
+        assertEquals(SeatAvailabilityStatus.AVAILABLE, seatProjection.getStatus());
+        assertNull(seatProjection.getOrderId());
+        assertNull(seatProjection.getHoldId());
+        assertNull(seatProjection.getSessionId());
+        assertNull(seatProjection.getHoldExpiresAt());
+        assertNull(seatProjection.getTicketId());
+        verify(projectionCheckpointRepository).save(checkpointCaptor.capture());
+        assertEquals(1L, checkpointCaptor.getValue().getLastProcessedEventId());
+    }
+
+    @Test
+    void processNextBatchIgnoresStaleHoldExpiredWhenProjectionAlreadyPointsAtDifferentHold() throws Exception {
+        String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
+        SeatAvailabilityProjection seatProjection = new SeatAvailabilityProjection(
+            10L, 20L, "A", "1", "10", SeatAvailabilityStatus.HELD, 201L, 101L, "session-2",
+            LocalDateTime.of(2026, 3, 17, 10, 8), null, LocalDateTime.now()
+        );
+        OutboxEvent holdExpired = createHoldExpiredEvent(1L, 100L, 200L, 20L, 10L, "session-1", LocalDateTime.of(2026, 3, 17, 10, 6));
+
+        when(projectionCheckpointRepository.findById(consumerName)).thenReturn(Optional.of(ProjectionCheckpoint.initialize(consumerName, LocalDateTime.now())));
+        when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class)))
+            .thenReturn(List.of(holdExpired));
+        when(seatAvailabilityProjectionRepository.findById(10L)).thenReturn(Optional.of(seatProjection));
+
+        int processed = projectionConsumerService.processNextBatch(consumerName, 10);
+
+        assertEquals(1, processed);
+        assertEquals(SeatAvailabilityStatus.HELD, seatProjection.getStatus());
+        assertEquals(201L, seatProjection.getOrderId());
+        assertEquals(101L, seatProjection.getHoldId());
+        assertEquals("session-2", seatProjection.getSessionId());
+        verify(seatAvailabilityProjectionRepository, never()).save(any(SeatAvailabilityProjection.class));
+        verify(projectionCheckpointRepository).save(checkpointCaptor.capture());
+        assertEquals(1L, checkpointCaptor.getValue().getLastProcessedEventId());
+    }
+
+    @Test
+    void replayRebuildsSeatAvailabilityProjectionFromOutboxLogAcrossBatches() throws Exception {
+        String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
+        SeatAvailabilityProjection seatProjection = new SeatAvailabilityProjection(
+            10L, 20L, "A", "1", "10", SeatAvailabilityStatus.AVAILABLE, null, null, null, null, null, LocalDateTime.now()
+        );
+        AtomicReference<ProjectionCheckpoint> checkpointState = new AtomicReference<>();
+
+        List<OutboxEvent> outboxEvents = List.of(
+            createHoldCreatedEvent(1L, 100L, 200L, 20L, 10L, "session-1", LocalDateTime.of(2026, 3, 17, 10, 0), LocalDateTime.of(2026, 3, 17, 10, 5)),
+            createOrderCompletedEvent(2L, 200L, 20L, "session-1", List.of(100L), List.of(300L), LocalDateTime.of(2026, 3, 17, 10, 1)),
+            createTicketIssuedEvent(3L, 300L, 200L, 20L, "session-1", 10L, "A", "1", "10", LocalDateTime.of(2026, 3, 17, 10, 1))
+        );
+
+        when(projectionCheckpointRepository.findById(consumerName)).thenAnswer(invocation -> Optional.ofNullable(checkpointState.get()));
+        when(projectionCheckpointRepository.save(any(ProjectionCheckpoint.class))).thenAnswer(invocation -> {
+            ProjectionCheckpoint checkpoint = invocation.getArgument(0);
+            checkpointState.set(new ProjectionCheckpoint(
+                checkpoint.getConsumerName(),
+                checkpoint.getLastProcessedEventId(),
+                checkpoint.getUpdatedAt()
+            ));
+            return checkpoint;
+        });
+        when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class))).thenAnswer(invocation -> {
+            Long lastProcessedId = invocation.getArgument(0);
+            Pageable pageable = invocation.getArgument(1);
+            return outboxEvents.stream()
+                .filter(event -> event.getId() > lastProcessedId)
+                .limit(pageable.getPageSize())
+                .toList();
+        });
+        when(seatAvailabilityProjectionRepository.findById(10L)).thenReturn(Optional.of(seatProjection));
+        when(seatAvailabilityProjectionRepository.save(any(SeatAvailabilityProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userTicketProjectionRepository.findById(300L)).thenReturn(Optional.empty());
+        when(userTicketProjectionRepository.save(any(UserTicketProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertEquals(2, projectionConsumerService.processNextBatch(consumerName, 2));
+        assertEquals(SeatAvailabilityStatus.HELD, seatProjection.getStatus());
+        assertEquals(2L, checkpointState.get().getLastProcessedEventId());
+
+        assertEquals(1, projectionConsumerService.processNextBatch(consumerName, 2));
+        assertEquals(SeatAvailabilityStatus.SOLD, seatProjection.getStatus());
+        assertEquals(300L, seatProjection.getTicketId());
+        assertEquals("session-1", seatProjection.getSessionId());
+        assertEquals(3L, checkpointState.get().getLastProcessedEventId());
+
+        assertEquals(0, projectionConsumerService.processNextBatch(consumerName, 2));
+        assertEquals(3L, checkpointState.get().getLastProcessedEventId());
+    }
+
+    @Test
+    void replayRebuildsUserTicketProjectionFromOutboxLog() throws Exception {
+        String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
+        SeatAvailabilityProjection seatProjection = new SeatAvailabilityProjection(
+            10L, 20L, "A", "1", "10", SeatAvailabilityStatus.AVAILABLE, null, null, null, null, null, LocalDateTime.now()
+        );
+        AtomicReference<ProjectionCheckpoint> checkpointState = new AtomicReference<>();
+        Map<Long, UserTicketProjection> ticketProjectionStore = new HashMap<>();
+
+        List<OutboxEvent> outboxEvents = List.of(
+            createHoldCreatedEvent(1L, 100L, 200L, 20L, 10L, "session-1", LocalDateTime.of(2026, 3, 17, 10, 0), LocalDateTime.of(2026, 3, 17, 10, 5)),
+            createOrderCompletedEvent(2L, 200L, 20L, "session-1", List.of(100L), List.of(300L), LocalDateTime.of(2026, 3, 17, 10, 1)),
+            createTicketIssuedEvent(3L, 300L, 200L, 20L, "session-1", 10L, "A", "1", "10", LocalDateTime.of(2026, 3, 17, 10, 1))
+        );
+
+        when(projectionCheckpointRepository.findById(consumerName)).thenAnswer(invocation -> Optional.ofNullable(checkpointState.get()));
+        when(projectionCheckpointRepository.save(any(ProjectionCheckpoint.class))).thenAnswer(invocation -> {
+            ProjectionCheckpoint checkpoint = invocation.getArgument(0);
+            checkpointState.set(new ProjectionCheckpoint(
+                checkpoint.getConsumerName(),
+                checkpoint.getLastProcessedEventId(),
+                checkpoint.getUpdatedAt()
+            ));
+            return checkpoint;
+        });
+        when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class))).thenAnswer(invocation -> {
+            Long lastProcessedId = invocation.getArgument(0);
+            Pageable pageable = invocation.getArgument(1);
+            return outboxEvents.stream()
+                .filter(event -> event.getId() > lastProcessedId)
+                .limit(pageable.getPageSize())
+                .toList();
+        });
+        when(seatAvailabilityProjectionRepository.findById(10L)).thenReturn(Optional.of(seatProjection));
+        when(seatAvailabilityProjectionRepository.save(any(SeatAvailabilityProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userTicketProjectionRepository.findById(any(Long.class))).thenAnswer(invocation -> Optional.ofNullable(ticketProjectionStore.get(invocation.getArgument(0))));
+        when(userTicketProjectionRepository.save(any(UserTicketProjection.class))).thenAnswer(invocation -> {
+            UserTicketProjection projection = invocation.getArgument(0);
+            ticketProjectionStore.put(projection.getTicketId(), projection);
+            return projection;
+        });
+
+        assertEquals(3, projectionConsumerService.processNextBatch(consumerName, 10));
+
+        UserTicketProjection rebuiltProjection = ticketProjectionStore.get(300L);
+        assertNotNull(rebuiltProjection);
+        assertEquals(300L, rebuiltProjection.getTicketId());
+        assertEquals(200L, rebuiltProjection.getOrderId());
+        assertEquals(20L, rebuiltProjection.getEventId());
+        assertEquals("session-1", rebuiltProjection.getSessionId());
+        assertEquals(10L, rebuiltProjection.getSeatId());
+        assertEquals("10", rebuiltProjection.getSeatNumber());
+        assertEquals(3L, checkpointState.get().getLastProcessedEventId());
+    }
+
+    @Test
     void processNextBatchDoesNotAdvanceCheckpointWhenProjectionFails() throws Exception {
         String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
         SeatAvailabilityProjection seatProjection = new SeatAvailabilityProjection(
             10L, 20L, "A", "1", "10", SeatAvailabilityStatus.HELD, 200L, 100L, "session-1", LocalDateTime.of(2026, 3, 17, 10, 5), null, LocalDateTime.now()
         );
 
-        OutboxEvent ticketIssued = OutboxEvent.create(
-            OutboxAggregateType.TICKET,
-            300L,
-            OutboxEventType.TICKET_ISSUED,
-            objectMapper.writeValueAsString(new TicketIssuedPayload(300L, 200L, 20L, "session-1", 10L, "A", "1", "10", LocalDateTime.of(2026, 3, 17, 10, 1))),
-            LocalDateTime.of(2026, 3, 17, 10, 1)
-        );
-        ticketIssued.setId(1L);
+        OutboxEvent ticketIssued = createTicketIssuedEvent(1L, 300L, 200L, 20L, "session-1", 10L, "A", "1", "10",
+            LocalDateTime.of(2026, 3, 17, 10, 1));
 
         when(projectionCheckpointRepository.findById(consumerName)).thenReturn(Optional.of(ProjectionCheckpoint.initialize(consumerName, LocalDateTime.now())));
         when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class)))
@@ -151,26 +291,87 @@ class ProjectionConsumerServiceTest {
         verify(projectionCheckpointRepository, never()).save(any(ProjectionCheckpoint.class));
     }
 
-    @Test
-    void processNextBatchFailsLoudlyForHoldExpiredUntilProjectionIsImplemented() throws Exception {
-        String consumerName = ProjectionConsumerService.DEFAULT_CONSUMER_NAME;
+    private OutboxEvent createHoldCreatedEvent(
+        Long eventId,
+        Long holdId,
+        Long orderId,
+        Long eventAggregateId,
+        Long seatId,
+        String sessionId,
+        LocalDateTime createdAt,
+        LocalDateTime expiresAt
+    ) throws Exception {
+        OutboxEvent holdCreated = OutboxEvent.create(
+            OutboxAggregateType.HOLD,
+            holdId,
+            OutboxEventType.HOLD_CREATED,
+            objectMapper.writeValueAsString(new HoldCreatedPayload(holdId, orderId, eventAggregateId, seatId, sessionId, createdAt, expiresAt)),
+            createdAt
+        );
+        holdCreated.setId(eventId);
+        return holdCreated;
+    }
+
+    private OutboxEvent createHoldExpiredEvent(
+        Long eventId,
+        Long holdId,
+        Long orderId,
+        Long eventAggregateId,
+        Long seatId,
+        String sessionId,
+        LocalDateTime expiredAt
+    ) throws Exception {
         OutboxEvent holdExpired = OutboxEvent.create(
             OutboxAggregateType.HOLD,
-            100L,
+            holdId,
             OutboxEventType.HOLD_EXPIRED,
-            "{}",
-            LocalDateTime.of(2026, 3, 17, 10, 2)
+            objectMapper.writeValueAsString(new HoldExpiredPayload(holdId, orderId, eventAggregateId, seatId, sessionId, expiredAt)),
+            expiredAt
         );
-        holdExpired.setId(1L);
+        holdExpired.setId(eventId);
+        return holdExpired;
+    }
 
-        when(projectionCheckpointRepository.findById(consumerName)).thenReturn(Optional.of(ProjectionCheckpoint.initialize(consumerName, LocalDateTime.now())));
-        when(outboxEventRepository.findByIdGreaterThanOrderByIdAsc(any(Long.class), any(Pageable.class)))
-            .thenReturn(List.of(holdExpired));
+    private OutboxEvent createOrderCompletedEvent(
+        Long eventId,
+        Long orderId,
+        Long eventAggregateId,
+        String sessionId,
+        List<Long> holdIds,
+        List<Long> ticketIds,
+        LocalDateTime completedAt
+    ) throws Exception {
+        OutboxEvent orderCompleted = OutboxEvent.create(
+            OutboxAggregateType.ORDER,
+            orderId,
+            OutboxEventType.ORDER_COMPLETED,
+            objectMapper.writeValueAsString(new OrderCompletedPayload(orderId, eventAggregateId, sessionId, holdIds, ticketIds, completedAt)),
+            completedAt
+        );
+        orderCompleted.setId(eventId);
+        return orderCompleted;
+    }
 
-        IllegalStateException thrown = assertThrows(IllegalStateException.class,
-            () -> projectionConsumerService.processNextBatch(consumerName, 10));
-
-        assertEquals("HOLD_EXPIRED projection not yet implemented", thrown.getMessage());
-        verify(projectionCheckpointRepository, never()).save(any(ProjectionCheckpoint.class));
+    private OutboxEvent createTicketIssuedEvent(
+        Long eventId,
+        Long ticketId,
+        Long orderId,
+        Long eventAggregateId,
+        String sessionId,
+        Long seatId,
+        String section,
+        String rowLabel,
+        String seatNumber,
+        LocalDateTime issuedAt
+    ) throws Exception {
+        OutboxEvent ticketIssued = OutboxEvent.create(
+            OutboxAggregateType.TICKET,
+            ticketId,
+            OutboxEventType.TICKET_ISSUED,
+            objectMapper.writeValueAsString(new TicketIssuedPayload(ticketId, orderId, eventAggregateId, sessionId, seatId, section, rowLabel, seatNumber, issuedAt)),
+            issuedAt
+        );
+        ticketIssued.setId(eventId);
+        return ticketIssued;
     }
 }

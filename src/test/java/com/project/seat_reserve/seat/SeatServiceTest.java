@@ -2,7 +2,6 @@ package com.project.seat_reserve.seat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -91,6 +90,7 @@ class SeatServiceTest {
         assertEquals("A", response.getSection());
         assertEquals("1", response.getRowLabel());
         assertEquals("10", response.getSeatNumber());
+        assertEquals("AVAILABLE", response.getStatus());
     }
 
     @Test
@@ -103,20 +103,26 @@ class SeatServiceTest {
     }
 
     @Test
-    void getSeatsByEventIdMapsRepositoryResults() {
-        Event event = new Event();
-        event.setId(5L);
+    void getSeatsByEventIdMapsProjectionResults() {
+        SeatAvailabilityProjection firstSeat = new SeatAvailabilityProjection(
+            1L, 5L, "A", "1", "1", SeatAvailabilityStatus.AVAILABLE,
+            null, null, null, null, null, LocalDateTime.now()
+        );
+        SeatAvailabilityProjection secondSeat = new SeatAvailabilityProjection(
+            2L, 5L, "A", "1", "2", SeatAvailabilityStatus.HELD,
+            20L, 30L, "session-123", LocalDateTime.now().plusMinutes(5), null, LocalDateTime.now()
+        );
 
-        Seat firstSeat = new Seat(1L, event, "A", "1", "1");
-        Seat secondSeat = new Seat(2L, event, "A", "1", "2");
-
-        when(seatRepository.findByEventId(5L)).thenReturn(List.of(firstSeat, secondSeat));
+        when(seatAvailabilityProjectionRepository.findByEventIdOrderBySectionAscRowLabelAscSeatNumberAsc(5L))
+            .thenReturn(List.of(firstSeat, secondSeat));
 
         List<SeatResponse> response = seatService.getSeatsByEventId(5L);
 
         assertEquals(2, response.size());
         assertEquals("1", response.get(0).getSeatNumber());
+        assertEquals("AVAILABLE", response.get(0).getStatus());
         assertEquals("2", response.get(1).getSeatNumber());
-        verify(seatRepository).findByEventId(5L);
+        assertEquals("HELD", response.get(1).getStatus());
+        verify(seatAvailabilityProjectionRepository).findByEventIdOrderBySectionAscRowLabelAscSeatNumberAsc(5L);
     }
 }

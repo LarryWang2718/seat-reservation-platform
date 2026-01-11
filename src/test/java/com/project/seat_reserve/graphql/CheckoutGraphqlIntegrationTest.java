@@ -48,6 +48,7 @@ class CheckoutGraphqlIntegrationTest {
             section
             rowLabel
             seatNumber
+            status
           }
         }
         """;
@@ -81,6 +82,21 @@ class CheckoutGraphqlIntegrationTest {
             seatId
             orderId
             status
+          }
+        }
+        """;
+
+    private static final String TICKETS_BY_SESSION = """
+        query($sessionId: String!) {
+          ticketsBySession(sessionId: $sessionId) {
+            ticketId
+            orderId
+            eventId
+            sessionId
+            seatId
+            section
+            rowLabel
+            seatNumber
           }
         }
         """;
@@ -144,6 +160,13 @@ class CheckoutGraphqlIntegrationTest {
         JsonNode confirmResponse = executeGraphQl(CONFIRM_ORDER, Map.of("orderId", orderId));
         assertNoErrors(confirmResponse);
         assertThat(confirmResponse.path("data").path("confirmOrder").path("status").asText()).isEqualTo("COMPLETED");
+
+        JsonNode ticketsResponse = executeGraphQl(TICKETS_BY_SESSION, Map.of("sessionId", "graphql-session-success"));
+        assertNoErrors(ticketsResponse);
+        JsonNode tickets = ticketsResponse.path("data").path("ticketsBySession");
+        assertThat(tickets).hasSize(1);
+        assertThat(tickets.get(0).path("seatId").asLong()).isEqualTo(seatId);
+        assertThat(tickets.get(0).path("sessionId").asText()).isEqualTo("graphql-session-success");
 
         Order savedOrder = orderRepository.findById(orderId).orElseThrow();
         Hold savedHold = holdRepository.findByOrderId(orderId).get(0);
@@ -229,6 +252,7 @@ class CheckoutGraphqlIntegrationTest {
             )
         ));
         assertNoErrors(response);
+        assertThat(response.path("data").path("createSeat").path("status").asText()).isEqualTo("AVAILABLE");
         return response.path("data").path("createSeat").path("id").asLong();
     }
 

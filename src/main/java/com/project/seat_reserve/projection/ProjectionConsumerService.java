@@ -9,10 +9,10 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.seat_reserve.outbox.HoldCreatedPayload;
+import com.project.seat_reserve.outbox.HoldExpiredPayload;
 import com.project.seat_reserve.outbox.OrderCompletedPayload;
 import com.project.seat_reserve.outbox.OutboxEvent;
 import com.project.seat_reserve.outbox.OutboxEventRepository;
-import com.project.seat_reserve.outbox.OutboxEventType;
 import com.project.seat_reserve.outbox.TicketIssuedPayload;
 
 import jakarta.transaction.Transactional;
@@ -56,11 +56,9 @@ public class ProjectionConsumerService {
     private void applyEvent(OutboxEvent outboxEvent) {
         switch (outboxEvent.getEventType()) {
             case HOLD_CREATED -> applyHoldCreated(outboxEvent);
+            case HOLD_EXPIRED -> applyHoldExpired(outboxEvent);
             case ORDER_COMPLETED -> deserialize(outboxEvent.getPayload(), OrderCompletedPayload.class);
             case TICKET_ISSUED -> applyTicketIssued(outboxEvent);
-            case HOLD_EXPIRED -> throw new IllegalStateException(
-                "HOLD_EXPIRED projection not yet implemented"
-            );
         }
     }
 
@@ -70,6 +68,17 @@ public class ProjectionConsumerService {
             .orElseThrow(() -> new IllegalStateException("Missing seat availability projection for seat " + payload.seatId()));
         projection.markHeld(payload.orderId(), payload.holdId(), payload.sessionId(), payload.expiresAt(), outboxEvent.getCreatedAt());
         seatAvailabilityProjectionRepository.save(projection);
+    }
+
+    private void applyHoldExpired(OutboxEvent outboxEvent) {
+        HoldExpiredPayload payload = deserialize(outboxEvent.getPayload(), HoldExpiredPayload.class);
+        SeatAvailabilityProjection projection = seatAvailabilityProjectionRepository.findById(payload.seatId())
+            .orElseThrow(() -> new IllegalStateException("Missing seat availability projection for seat " + payload.seatId()));
+
+        if (payload.holdId().equals(projection.getHoldId())) {
+            projection.markAvailable(outboxEvent.getCreatedAt());
+            seatAvailabilityProjectionRepository.save(projection);
+        }
     }
 
     private void applyTicketIssued(OutboxEvent outboxEvent) {

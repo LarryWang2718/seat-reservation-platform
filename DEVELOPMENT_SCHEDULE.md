@@ -76,22 +76,22 @@ Use this file as the working checklist for the project. At the end of each day, 
 - [x] Implement ordered projection consumer
 - [x] Make projection consumer idempotent
 - [x] Store last processed event/checkpoint
-- [ ] Add replay capability from outbox/event log
-- [ ] Add tests for replay rebuilding seat availability
-- [ ] Add tests for replay rebuilding user ticket view
+- [x] Add replay capability from outbox/event log
+- [x] Add tests for replay rebuilding seat availability
+- [x] Add tests for replay rebuilding user ticket view
 
 Blockers / follow-ups:
-- [ ] Implement `HOLD_EXPIRED` projection handling before enabling the hold-expiration producer
-- [ ] Switch GraphQL seat reads to `seat_availability_projection`
-- [ ] Add a GraphQL/user read path backed by `user_ticket_projection`
+- [x] Implement `HOLD_EXPIRED` projection handling before enabling the hold-expiration producer
+- [x] Switch GraphQL seat reads to `seat_availability_projection`
+- [x] Add a GraphQL/user read path backed by `user_ticket_projection`
 
 ## Phase 7: Resilience features
 
 - [ ] Add retry policy for failed projection processing
 - [ ] Add DLQ table for poison events
 - [ ] Record failure reason and attempt count
-- [ ] Add scheduled job to expire stale holds
-- [ ] Process hold expiration in batches
+- [x] Add scheduled job to expire stale holds
+- [x] Process hold expiration in batches
 - [ ] Add batched cleanup for cancellations
 - [ ] Add tests for retry and DLQ behavior
 - [ ] Add tests for automatic hold expiration
@@ -101,7 +101,7 @@ Blockers / follow-ups:
 - [x] Define GraphQL schema for events
 - [x] Define GraphQL schema for seat map
 - [x] Define GraphQL mutations for hold and checkout
-- [ ] Resolve reads from projection tables
+- [x] Resolve reads from projection tables
 - [x] Route writes through transactional services
 - [x] Add GraphQL integration tests
 
@@ -130,3 +130,4 @@ Blockers / follow-ups:
 - [ ] Finish code + tests for those items only
 - [ ] Update this file before stopping for the day
 - [ ] Note blockers directly under the phase you are in
+
