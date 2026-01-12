@@ -93,9 +93,9 @@ Blockers / follow-ups:
 - [x] Run projection consumer on a schedule
 - [x] Add scheduled job to expire stale holds
 - [x] Process hold expiration in batches
-- [ ] Add batched cleanup for cancellations
+- [x] Add batched cleanup for cancellations
 - [x] Add tests for retry and DLQ behavior
-- [ ] Add tests for automatic hold expiration
+- [x] Add tests for automatic hold expiration
 
 ## Phase 8: GraphQL API
 
@@ -131,6 +131,7 @@ Blockers / follow-ups:
 - [ ] Finish code + tests for those items only
 - [ ] Update this file before stopping for the day
 - [ ] Note blockers directly under the phase you are in
+
 
 
 
