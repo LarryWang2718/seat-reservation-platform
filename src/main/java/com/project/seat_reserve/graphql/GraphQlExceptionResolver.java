@@ -12,7 +12,6 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import com.project.seat_reserve.common.exception.ActiveOrderAlreadyExistsException;
-import com.project.seat_reserve.common.exception.OrderCleanupFailedException;
 import com.project.seat_reserve.common.exception.EventNotFoundException;
 import com.project.seat_reserve.common.exception.EventNotOpenForOrderingException;
 import com.project.seat_reserve.common.exception.EventSaleWindowClosedException;
@@ -22,6 +21,7 @@ import com.project.seat_reserve.common.exception.InvalidHoldStateException;
 import com.project.seat_reserve.common.exception.InvalidSaleWindowException;
 import com.project.seat_reserve.common.exception.InvalidSessionIdException;
 import com.project.seat_reserve.common.exception.NoActiveHoldsForOrderException;
+import com.project.seat_reserve.common.exception.OrderCleanupFailedException;
 import com.project.seat_reserve.common.exception.OrderNotFoundException;
 import com.project.seat_reserve.common.exception.OrderNotPendingException;
 import com.project.seat_reserve.common.exception.OrderSaleWindowClosedException;
@@ -36,8 +36,10 @@ import graphql.GraphQLError;
 import graphql.GraphqlErrorBuilder;
 import graphql.schema.DataFetchingEnvironment;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
+@Slf4j
 public class GraphQlExceptionResolver extends DataFetcherExceptionResolverAdapter {
 
     @Override
@@ -70,9 +72,11 @@ public class GraphQlExceptionResolver extends DataFetcherExceptionResolverAdapte
                 ex.getClass().getSimpleName());
         }
         if (ex instanceof OrderCleanupFailedException) {
+            log.error("GraphQL request failed during cleanup: field={}, code={}", fieldName(env), ex.getClass().getSimpleName(), ex);
             return buildError(env, ex.getMessage(), ErrorType.INTERNAL_ERROR, ex.getClass().getSimpleName());
         }
 
+        log.error("Unhandled GraphQL error: field={}, code={}", fieldName(env), ex.getClass().getSimpleName(), ex);
         return buildError(env, "Internal server error", ErrorType.INTERNAL_ERROR, ex.getClass().getSimpleName());
     }
 
@@ -105,6 +109,10 @@ public class GraphQlExceptionResolver extends DataFetcherExceptionResolverAdapte
         return exception.getConstraintViolations().stream()
             .map(violation -> violation.getMessage())
             .collect(Collectors.joining(", "));
+    }
+
+    private String fieldName(DataFetchingEnvironment env) {
+        return env.getField() != null ? env.getField().getName() : "unknown";
     }
 
     private GraphQLError buildError(DataFetchingEnvironment env, String message, ErrorType errorType, String code) {

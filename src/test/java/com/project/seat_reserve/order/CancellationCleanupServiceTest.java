@@ -23,6 +23,7 @@ import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
 import com.project.seat_reserve.hold.HoldStatus;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.seat.Seat;
 import com.project.seat_reserve.ticket.Ticket;
@@ -41,6 +42,9 @@ class CancellationCleanupServiceTest {
 
     @Mock
     private OutboxEventService outboxEventService;
+
+    @Mock
+    private ReservationMetrics reservationMetrics;
 
     @InjectMocks
     private CancellationCleanupService cancellationCleanupService;

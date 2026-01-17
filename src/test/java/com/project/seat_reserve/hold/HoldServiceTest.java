@@ -31,6 +31,7 @@ import com.project.seat_reserve.common.exception.SeatOrderMismatchException;
 import com.project.seat_reserve.event.Event;
 import com.project.seat_reserve.hold.dto.CreateHoldRequest;
 import com.project.seat_reserve.hold.dto.HoldResponse;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.order.OrderRepository;
@@ -55,6 +56,9 @@ class HoldServiceTest {
 
     @Mock
     private OutboxEventService outboxEventService;
+
+    @Mock
+    private ReservationMetrics reservationMetrics;
 
     @InjectMocks
     private HoldService holdService;
@@ -303,5 +307,6 @@ class HoldServiceTest {
         return order;
     }
 }
+
 
 

@@ -29,6 +29,8 @@ import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.order.OrderRepository;
 import com.project.seat_reserve.order.OrderService;
 import com.project.seat_reserve.order.OrderStatus;
+import com.project.seat_reserve.projection.SeatAvailabilityProjectionRepository;
+import com.project.seat_reserve.projection.UserTicketProjectionRepository;
 import com.project.seat_reserve.seat.Seat;
 import com.project.seat_reserve.seat.SeatRepository;
 import com.project.seat_reserve.ticket.TicketRepository;
@@ -60,12 +62,20 @@ class OutboxIntegrationTest {
     @Autowired
     private OutboxEventRepository outboxEventRepository;
 
+    @Autowired
+    private UserTicketProjectionRepository userTicketProjectionRepository;
+
+    @Autowired
+    private SeatAvailabilityProjectionRepository seatAvailabilityProjectionRepository;
+
     @SpyBean
     private OutboxEventService outboxEventService;
 
     @BeforeEach
     void setUp() {
         reset(outboxEventService);
+        userTicketProjectionRepository.deleteAllInBatch();
+        seatAvailabilityProjectionRepository.deleteAllInBatch();
         ticketRepository.deleteAllInBatch();
         outboxEventRepository.deleteAllInBatch();
         holdRepository.deleteAllInBatch();
@@ -186,4 +196,5 @@ class OutboxIntegrationTest {
         return holdRepository.save(Hold.createHeld(order, seat, LocalDateTime.now(), LocalDateTime.now().plusMinutes(5)));
     }
 }
+
 

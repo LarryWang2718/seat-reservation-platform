@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 
 import com.project.seat_reserve.event.Event;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.order.OrderStatus;
 import com.project.seat_reserve.outbox.OutboxEventService;
@@ -33,6 +34,9 @@ class HoldExpirationServiceTest {
 
     @Mock
     private OutboxEventService outboxEventService;
+
+    @Mock
+    private ReservationMetrics reservationMetrics;
 
     @InjectMocks
     private HoldExpirationService holdExpirationService;

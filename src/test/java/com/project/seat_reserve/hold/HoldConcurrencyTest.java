@@ -23,6 +23,8 @@ import com.project.seat_reserve.hold.dto.CreateHoldRequest;
 import com.project.seat_reserve.hold.dto.HoldResponse;
 import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.order.OrderRepository;
+import com.project.seat_reserve.projection.SeatAvailabilityProjectionRepository;
+import com.project.seat_reserve.projection.UserTicketProjectionRepository;
 import com.project.seat_reserve.seat.Seat;
 import com.project.seat_reserve.seat.SeatRepository;
 import com.project.seat_reserve.ticket.TicketRepository;
@@ -48,8 +50,16 @@ class HoldConcurrencyTest {
     @Autowired
     private TicketRepository ticketRepository;
 
+    @Autowired
+    private UserTicketProjectionRepository userTicketProjectionRepository;
+
+    @Autowired
+    private SeatAvailabilityProjectionRepository seatAvailabilityProjectionRepository;
+
     @BeforeEach
     void setUp() {
+        userTicketProjectionRepository.deleteAllInBatch();
+        seatAvailabilityProjectionRepository.deleteAllInBatch();
         ticketRepository.deleteAllInBatch();
         holdRepository.deleteAllInBatch();
         orderRepository.deleteAllInBatch();

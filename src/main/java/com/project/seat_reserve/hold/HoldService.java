@@ -17,6 +17,7 @@ import com.project.seat_reserve.common.exception.SeatNotFoundException;
 import com.project.seat_reserve.common.exception.SeatOrderMismatchException;
 import com.project.seat_reserve.hold.dto.CreateHoldRequest;
 import com.project.seat_reserve.hold.dto.HoldResponse;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.Order;
 import com.project.seat_reserve.order.OrderRepository;
@@ -27,8 +28,10 @@ import com.project.seat_reserve.ticket.TicketRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class HoldService {
     private final TicketRepository ticketRepository;
@@ -36,23 +39,43 @@ public class HoldService {
     private final HoldRepository holdRepository;
     private final OrderRepository orderRepository;
     private final OutboxEventService outboxEventService;
+    private final ReservationMetrics reservationMetrics;
 
     @Transactional
     public HoldResponse createHold(CreateHoldRequest createHoldRequest) {
-        Order order = getRequiredOrder(createHoldRequest.getOrderId());
-        Seat seat = getRequiredSeat(createHoldRequest.getSeatId());
-        validateHoldRequest(order, seat);
+        Long orderId = createHoldRequest.getOrderId();
+        Long seatId = createHoldRequest.getSeatId();
+        reservationMetrics.recordHoldAttempt();
 
-        LocalDateTime currentTime = LocalDateTime.now();
-        Hold hold = Hold.createHeld(order, seat, currentTime, currentTime.plusMinutes(5));
-        Hold savedHold;
         try {
-            savedHold = holdRepository.save(hold);
-        } catch (DataIntegrityViolationException e) {
-            throw new SeatAlreadyHeldException(seat.getId());
+            Order order = getRequiredOrder(orderId);
+            Seat seat = getRequiredSeat(seatId);
+            validateHoldRequest(order, seat);
+
+            LocalDateTime currentTime = LocalDateTime.now();
+            Hold hold = Hold.createHeld(order, seat, currentTime, currentTime.plusMinutes(5));
+            Hold savedHold;
+            try {
+                savedHold = holdRepository.save(hold);
+            } catch (DataIntegrityViolationException e) {
+                throw new SeatAlreadyHeldException(seat.getId());
+            }
+
+            outboxEventService.publishHoldCreated(savedHold);
+            reservationMetrics.recordHoldCreated();
+            log.info("Created hold: holdId={}, orderId={}, seatId={}, sessionId={}, expiresAt={}",
+                savedHold.getId(), orderId, seatId, order.getSessionId(), savedHold.getExpiresAt());
+            return toResponse(savedHold);
+        } catch (RuntimeException exception) {
+            reservationMetrics.recordHoldFailure(exception.getClass().getSimpleName());
+            if (isExpectedHoldFailure(exception)) {
+                log.warn("Hold creation rejected: orderId={}, seatId={}, reason={}",
+                    orderId, seatId, exception.getClass().getSimpleName());
+            } else {
+                log.error("Hold creation failed: orderId={}, seatId={}", orderId, seatId, exception);
+            }
+            throw exception;
         }
-        outboxEventService.publishHoldCreated(savedHold);
-        return toResponse(savedHold);
     }
 
     public List<HoldResponse> getHoldsByOrderId(Long orderId) {
@@ -93,6 +116,17 @@ public class HoldService {
         if (holdRepository.existsBySeatIdAndStatus(seatId, HoldStatus.HELD)) {
             throw new SeatAlreadyHeldException(seatId);
         }
+    }
+
+    private boolean isExpectedHoldFailure(RuntimeException exception) {
+        return exception instanceof HoldLimitExceededException
+            || exception instanceof OrderNotFoundException
+            || exception instanceof OrderNotPendingException
+            || exception instanceof SeatAlreadyHeldByOrderException
+            || exception instanceof SeatAlreadyHeldException
+            || exception instanceof SeatAlreadySoldException
+            || exception instanceof SeatNotFoundException
+            || exception instanceof SeatOrderMismatchException;
     }
 
     private HoldResponse toResponse(Hold hold) {

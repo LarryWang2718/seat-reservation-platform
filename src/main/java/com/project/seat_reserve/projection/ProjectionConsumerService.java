@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.HoldCreatedPayload;
 import com.project.seat_reserve.outbox.HoldExpiredPayload;
 import com.project.seat_reserve.outbox.OrderCompletedPayload;
@@ -18,8 +19,10 @@ import com.project.seat_reserve.outbox.TicketIssuedPayload;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ProjectionConsumerService {
     public static final String DEFAULT_CONSUMER_NAME = "seat-and-ticket-projection";
@@ -33,6 +36,7 @@ public class ProjectionConsumerService {
     private final SeatAvailabilityProjectionRepository seatAvailabilityProjectionRepository;
     private final UserTicketProjectionRepository userTicketProjectionRepository;
     private final ObjectMapper objectMapper;
+    private final ReservationMetrics reservationMetrics;
 
     @Value("${app.projection-consumer.max-attempts:5}")
     private int maxAttempts = DEFAULT_MAX_ATTEMPTS;
@@ -67,11 +71,21 @@ public class ProjectionConsumerService {
                 }
 
                 projectionCheckpointRepository.save(checkpoint);
+                reservationMetrics.recordProjectionEventsProcessed(processedCount);
+                if (processedCount > 0) {
+                    log.info("Processed projection batch before retry stop: consumerName={}, processedCount={}, lastProcessedEventId={}",
+                        consumerName, processedCount, checkpoint.getLastProcessedEventId());
+                }
                 return processedCount;
             }
         }
 
         projectionCheckpointRepository.save(checkpoint);
+        reservationMetrics.recordProjectionEventsProcessed(processedCount);
+        if (processedCount > 0) {
+            log.info("Processed projection batch: consumerName={}, processedCount={}, lastProcessedEventId={}",
+                consumerName, processedCount, checkpoint.getLastProcessedEventId());
+        }
         return processedCount;
     }
 
@@ -87,6 +101,9 @@ public class ProjectionConsumerService {
 
         projectionEventFailureRepository.save(failure);
         if (failure.getAttemptCount() < maxAttempts) {
+            reservationMetrics.recordProjectionRetry(failureReason);
+            log.warn("Projection event processing failed: consumerName={}, outboxEventId={}, eventType={}, attemptCount={}, maxAttempts={}, reason={}",
+                consumerName, outboxEvent.getId(), outboxEvent.getEventType(), failure.getAttemptCount(), maxAttempts, failureReason);
             return false;
         }
 
@@ -95,6 +112,9 @@ public class ProjectionConsumerService {
                 ProjectionDeadLetter.fromFailure(consumerName, outboxEvent, failure, failedAt)
             ));
         projectionEventFailureRepository.deleteByConsumerNameAndOutboxEventId(consumerName, outboxEvent.getId());
+        reservationMetrics.recordProjectionDeadLetter(failureReason);
+        log.error("Projection event dead-lettered: consumerName={}, outboxEventId={}, eventType={}, attemptCount={}, reason={}",
+            consumerName, outboxEvent.getId(), outboxEvent.getEventType(), failure.getAttemptCount(), failureReason);
         return true;
     }
 

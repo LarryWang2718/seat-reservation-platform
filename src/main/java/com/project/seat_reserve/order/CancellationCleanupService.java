@@ -10,19 +10,23 @@ import org.springframework.stereotype.Service;
 import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
 import com.project.seat_reserve.hold.HoldStatus;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.ticket.TicketRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class CancellationCleanupService {
     private final OrderRepository orderRepository;
     private final HoldRepository holdRepository;
     private final TicketRepository ticketRepository;
     private final OutboxEventService outboxEventService;
+    private final ReservationMetrics reservationMetrics;
 
     @Transactional
     public int cleanupCancelledOrders(int batchSize, LocalDateTime createdBefore) {
@@ -70,6 +74,9 @@ public class CancellationCleanupService {
 
         holdRepository.deleteAllInBatch(cancelledHoldsToDelete);
         orderRepository.deleteAllInBatch(ordersToDelete);
+        reservationMetrics.recordCancelledOrdersCleaned(ordersToDelete.size());
+        log.info("Cleaned cancelled orders: orderCount={}, holdCount={}, createdBefore={}",
+            ordersToDelete.size(), cancelledHoldsToDelete.size(), createdBefore);
         return ordersToDelete.size();
     }
 }

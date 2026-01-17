@@ -24,6 +24,8 @@ import com.project.seat_reserve.hold.HoldRepository;
 import com.project.seat_reserve.hold.HoldStatus;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
+import com.project.seat_reserve.projection.SeatAvailabilityProjectionRepository;
+import com.project.seat_reserve.projection.UserTicketProjectionRepository;
 import com.project.seat_reserve.seat.Seat;
 import com.project.seat_reserve.seat.SeatRepository;
 import com.project.seat_reserve.ticket.TicketRepository;
@@ -49,8 +51,16 @@ class OrderConcurrencyTest {
     @Autowired
     private TicketRepository ticketRepository;
 
+    @Autowired
+    private UserTicketProjectionRepository userTicketProjectionRepository;
+
+    @Autowired
+    private SeatAvailabilityProjectionRepository seatAvailabilityProjectionRepository;
+
     @BeforeEach
     void setUp() {
+        userTicketProjectionRepository.deleteAllInBatch();
+        seatAvailabilityProjectionRepository.deleteAllInBatch();
         ticketRepository.deleteAllInBatch();
         holdRepository.deleteAllInBatch();
         orderRepository.deleteAllInBatch();

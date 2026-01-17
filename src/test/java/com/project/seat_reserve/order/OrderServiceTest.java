@@ -37,6 +37,7 @@ import com.project.seat_reserve.event.EventStatus;
 import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
 import com.project.seat_reserve.hold.HoldStatus;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
@@ -62,6 +63,9 @@ class OrderServiceTest {
 
     @Mock
     private OutboxEventService outboxEventService;
+
+    @Mock
+    private ReservationMetrics reservationMetrics;
 
     @InjectMocks
     private OrderService orderService;
@@ -336,5 +340,6 @@ class OrderServiceTest {
         return hold;
     }
 }
+
 
 

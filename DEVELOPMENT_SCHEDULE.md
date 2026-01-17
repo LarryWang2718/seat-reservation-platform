@@ -5,16 +5,13 @@ Use this file as the working checklist for the project. At the end of each day, 
 ## Phase 1: Foundation and event model
 
 - [x] Define package structure for `event`, `seat`, `hold`, `order`, `ticket`
-- [ ] Add package structure for `payment`
 - [x] Add package structure for `outbox`
 - [x] Implement `EventStatus`
 - [x] Implement `Event` JPA entity
 - [x] Implement `EventRepository`
 - [x] Create DTOs for event create/list APIs
-- [ ] Implement `POST /events`
-- [ ] Implement `GET /events`
 - [x] Implement GraphQL event create/list flow
-- [ ] Add tests for event creation and listing
+- [x] Add tests for event creation and listing
 
 ## Phase 2: Seat inventory model
 
@@ -25,7 +22,7 @@ Use this file as the working checklist for the project. At the end of each day, 
 - [x] Enforce unique seat identity within an event
 - [x] Add seat creation/bootstrap path for an event
 - [x] Implement GraphQL seat create/list flow
-- [ ] Add tests for seat persistence and uniqueness rules
+- [x] Add tests for seat creation and projection bootstrap
 
 ## Phase 3: Hold flow and concurrency boundary
 
@@ -45,13 +42,10 @@ Use this file as the working checklist for the project. At the end of each day, 
 ## Phase 4: Order, ticket, and checkout completion
 
 - [x] Design `OrderStatus`
-- [ ] Design `TicketStatus`, `PaymentStatus`
 - [x] Create Flyway migration for `order`
 - [x] Create Flyway migration for `ticket`
-- [ ] Create Flyway migration for `payment`
 - [x] Implement `Order` entity and repository
 - [x] Implement `Ticket` entity and repository
-- [ ] Implement `Payment` entity and repository
 - [x] Add DB rule preventing double-sell of a seat
 - [x] Implement checkout confirmation transaction
 - [x] Convert valid holds into sold tickets atomically
@@ -108,12 +102,12 @@ Blockers / follow-ups:
 
 ## Phase 9: Hardening and observability
 
-- [ ] Add structured logging around hold, checkout, projection, and expiration flows
-- [ ] Add metrics for hold attempts, hold failures, checkout success, projection lag, DLQ count
-- [ ] Add error handling for API and GraphQL layers
-- [ ] Add load-test scenario for on-sale traffic
-- [ ] Add concurrency test scenario for same-seat contention
-- [ ] Document zero double-sell guarantee and limits
+- [x] Add structured logging around hold, checkout, projection, and expiration flows
+- [x] Add metrics for hold attempts, hold failures, checkout success, projection lag, DLQ count
+- [x] Add error handling for API and GraphQL layers
+- [x] Add load-test scenario for on-sale traffic
+- [x] Add concurrency test scenario for same-seat contention
+- [x] Document zero double-sell guarantee and limits
 
 ## Phase 10: Resume-grade finish
 

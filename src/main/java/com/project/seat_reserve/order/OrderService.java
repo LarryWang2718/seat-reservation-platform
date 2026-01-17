@@ -24,6 +24,7 @@ import com.project.seat_reserve.event.EventStatus;
 import com.project.seat_reserve.hold.Hold;
 import com.project.seat_reserve.hold.HoldRepository;
 import com.project.seat_reserve.hold.HoldStatus;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.OutboxEventService;
 import com.project.seat_reserve.order.dto.CreateOrderRequest;
 import com.project.seat_reserve.order.dto.OrderResponse;
@@ -32,8 +33,10 @@ import com.project.seat_reserve.ticket.TicketRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OrderService {
     private static final String PENDING_ORDER_UNIQUE_INDEX = "uq_order_pending_session_event";
@@ -44,6 +47,7 @@ public class OrderService {
     private final TicketRepository ticketRepository;
     private final OrderCancellationService orderCancellationService;
     private final OutboxEventService outboxEventService;
+    private final ReservationMetrics reservationMetrics;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -64,32 +68,48 @@ public class OrderService {
 
     @Transactional
     public OrderResponse confirmOrder(Long orderId) {
-        Order order = loadPendingOrder(orderId);
-        List<Hold> holds;
-        LocalDateTime confirmationTime;
-        List<Ticket> savedTickets;
+        reservationMetrics.recordCheckoutAttempt();
 
         try {
-            holds = loadConfirmableHolds(orderId);
-            confirmationTime = LocalDateTime.now();
-            List<Ticket> tickets = holds.stream()
-                .map(hold -> Ticket.createForOrder(hold.getSeat(), order, confirmationTime))
-                .toList();
+            Order order = loadPendingOrder(orderId);
+            List<Hold> holds;
+            LocalDateTime confirmationTime;
+            List<Ticket> savedTickets;
 
-            savedTickets = ticketRepository.saveAll(tickets);
-            holds.forEach(Hold::markConfirmed);
-            order.markCompleted();
-        } catch (RuntimeException exception) {
             try {
-                orderCancellationService.cancelOrder(orderId);
-            } catch (RuntimeException cancellationException) {
-                throw new OrderCleanupFailedException(orderId, exception, cancellationException);
+                holds = loadConfirmableHolds(orderId);
+                confirmationTime = LocalDateTime.now();
+                List<Ticket> tickets = holds.stream()
+                    .map(hold -> Ticket.createForOrder(hold.getSeat(), order, confirmationTime))
+                    .toList();
+
+                savedTickets = ticketRepository.saveAll(tickets);
+                holds.forEach(Hold::markConfirmed);
+                order.markCompleted();
+            } catch (RuntimeException exception) {
+                try {
+                    orderCancellationService.cancelOrder(orderId);
+                } catch (RuntimeException cancellationException) {
+                    throw new OrderCleanupFailedException(orderId, exception, cancellationException);
+                }
+                throw exception;
+            }
+
+            outboxEventService.publishOrderCompleted(order, holds, savedTickets, confirmationTime);
+            reservationMetrics.recordCheckoutCompleted(savedTickets.size());
+            log.info("Confirmed order: orderId={}, sessionId={}, ticketCount={}",
+                orderId, order.getSessionId(), savedTickets.size());
+            return toResponse(order);
+        } catch (RuntimeException exception) {
+            reservationMetrics.recordCheckoutFailure(exception.getClass().getSimpleName());
+            if (isExpectedCheckoutFailure(exception)) {
+                log.warn("Order confirmation rejected: orderId={}, reason={}",
+                    orderId, exception.getClass().getSimpleName());
+            } else {
+                log.error("Order confirmation failed: orderId={}", orderId, exception);
             }
             throw exception;
         }
-
-        outboxEventService.publishOrderCompleted(order, holds, savedTickets, confirmationTime);
-        return toResponse(order);
     }
 
     private Order loadPendingOrder(Long orderId) {
@@ -161,6 +181,14 @@ public class OrderService {
         return mostSpecificCause != null
             && mostSpecificCause.getMessage() != null
             && mostSpecificCause.getMessage().contains(PENDING_ORDER_UNIQUE_INDEX);
+    }
+
+    private boolean isExpectedCheckoutFailure(RuntimeException exception) {
+        return exception instanceof InvalidHoldStateException
+            || exception instanceof NoActiveHoldsForOrderException
+            || exception instanceof OrderNotFoundException
+            || exception instanceof OrderNotPendingException
+            || exception instanceof SeatAlreadySoldException;
     }
 
     private OrderResponse toResponse(Order order) {

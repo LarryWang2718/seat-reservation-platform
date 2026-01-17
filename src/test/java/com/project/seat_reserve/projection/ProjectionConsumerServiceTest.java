@@ -27,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.seat_reserve.observability.ReservationMetrics;
 import com.project.seat_reserve.outbox.HoldCreatedPayload;
 import com.project.seat_reserve.outbox.HoldExpiredPayload;
 import com.project.seat_reserve.outbox.OrderCompletedPayload;
@@ -56,6 +57,9 @@ class ProjectionConsumerServiceTest {
     @Mock
     private UserTicketProjectionRepository userTicketProjectionRepository;
 
+    @Mock
+    private ReservationMetrics reservationMetrics;
+
     @Captor
     private ArgumentCaptor<ProjectionCheckpoint> checkpointCaptor;
 
@@ -81,7 +85,8 @@ class ProjectionConsumerServiceTest {
             projectionDeadLetterRepository,
             seatAvailabilityProjectionRepository,
             userTicketProjectionRepository,
-            objectMapper
+            objectMapper,
+            reservationMetrics
         );
         ReflectionTestUtils.setField(projectionConsumerService, "maxAttempts", 3);
     }
