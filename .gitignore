@@ -37,3 +37,6 @@ build/
 
 ### Local tooling ###
 .claude/
+
+### Local planning ###
+DEVELOPMENT_SCHEDULE.md
