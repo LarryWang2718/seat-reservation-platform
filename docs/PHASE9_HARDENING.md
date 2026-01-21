@@ -55,7 +55,7 @@ The repository already has executable same-seat contention coverage:
 Run them with:
 
 ```powershell
-$env:DB_PASSWORD='342302'
+$env:DB_PASSWORD='<local password>'
 .\mvnw.cmd "-Dtest=HoldConcurrencyTest,OrderConcurrencyTest" test
 ```
 
